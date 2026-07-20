@@ -1,0 +1,159 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import type { BaseId, Priority, TaskStatus } from '@/types'
+import { useDataStore } from '@/data/store'
+import { PRIORITY_META, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
+import { Modal } from '@/components/ui/Modal'
+import { Input, Label, Select, Textarea } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+
+interface TaskFormModalProps {
+  open: boolean
+  onClose: () => void
+  defaultArea?: BaseId
+}
+
+const PRIORITIES: Priority[] = ['baixa', 'media', 'alta', 'urgente']
+
+function emptyForm(defaultArea: BaseId) {
+  return {
+    title: '',
+    description: '',
+    clientId: '',
+    projectId: '',
+    responsibleId: '',
+    dueDate: '',
+    priority: 'media' as Priority,
+    status: 'a_fazer' as TaskStatus,
+    type: '',
+    area: defaultArea,
+  }
+}
+
+export function TaskFormModal({ open, onClose, defaultArea = 'operacional' }: TaskFormModalProps) {
+  const addTask = useDataStore((s) => s.addTask)
+  const clients = useDataStore((s) => s.clients)
+  const projects = useDataStore((s) => s.projects)
+  const users = useDataStore((s) => s.users)
+  const appSettings = useDataStore((s) => s.appSettings)
+
+  const [form, setForm] = useState(() => emptyForm(defaultArea))
+  const availableProjects = projects.filter((p) => !form.clientId || p.clientId === form.clientId)
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!form.title.trim() || !form.responsibleId) return
+    addTask({
+      title: form.title,
+      description: form.description || undefined,
+      clientId: form.clientId || undefined,
+      projectId: form.projectId || undefined,
+      responsibleId: form.responsibleId,
+      dueDate: form.dueDate || undefined,
+      priority: form.priority,
+      status: form.status,
+      type: form.type || 'Geral',
+      area: form.area,
+    })
+    setForm(emptyForm(defaultArea))
+    onClose()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Nova tarefa" description="Vincule a um cliente e/ou projeto — o prazo aparece automaticamente no calendário." size="lg">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="title">Título</Label>
+          <Input id="title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+        </div>
+        <div>
+          <Label htmlFor="description">Descrição</Label>
+          <Textarea id="description" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="clientId">Cliente</Label>
+            <Select id="clientId" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value, projectId: '' })}>
+              <option value="">Nenhum</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="projectId">Projeto</Label>
+            <Select id="projectId" value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
+              <option value="">Nenhum</option>
+              {availableProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="responsibleId">Responsável</Label>
+            <Select id="responsibleId" required value={form.responsibleId} onChange={(e) => setForm({ ...form, responsibleId: e.target.value })}>
+              <option value="">Selecione</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="area">Área</Label>
+            <Select id="area" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value as BaseId })}>
+              <option value="operacional">Operacional</option>
+              <option value="criativo">Criativo</option>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="dueDate">Prazo</Label>
+            <Input id="dueDate" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+          </div>
+          <div>
+            <Label htmlFor="priority">Prioridade</Label>
+            <Select id="priority" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}>
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>
+                  {PRIORITY_META[p].label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="type">Tipo</Label>
+            <Select id="type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+              <option value="">Selecione</option>
+              {appSettings.taskTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="status">Status inicial</Label>
+            <Select id="status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as TaskStatus })}>
+              {TASK_STATUS_ORDER.map((s) => (
+                <option key={s} value={s}>
+                  {TASK_STATUS_META[s].label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit">Criar tarefa</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}

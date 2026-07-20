@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Tokens de cor da Iter Mídia — formato "R G B" (sem vírgulas) para permitir
+ * opacidade via Tailwind (rgb(var(--x) / <alpha-value>)). Ver src/lib/theme.ts
+ * para a versão hex dos mesmos tokens e para o comentário sobre origem da
+ * paleta. Ajuste os dois arquivos juntos quando a marca oficial for definida.
+ */
+:root {
+  --iter-primary: 124 107 255;
+  --iter-primary-hover: 143 128 255;
+  --iter-secondary: 34 211 196;
+  --iter-accent: 56 189 248;
+
+  --iter-background: 9 10 15;
+  --iter-background-alt: 13 15 21;
+  --iter-surface: 19 21 29;
+  --iter-surface-alt: 24 27 37;
+  --iter-surface-hover: 30 33 44;
+  --iter-border: 38 42 56;
+  --iter-border-soft: 27 30 40;
+
+  --iter-text: 243 244 247;
+  --iter-text-muted: 154 160 178;
+  --iter-text-faint: 103 109 128;
+
+  --iter-success: 52 211 153;
+  --iter-warning: 245 166 35;
+  --iter-danger: 239 68 68;
+  --iter-info: 96 165 250;
+}
+
+@layer base {
+  * {
+    @apply border-iter-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-iter-bg text-iter-text antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    @apply bg-iter-primary/30 text-iter-text;
+  }
+
+  /* scrollbar discreto, no tom do app */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--iter-border));
+    border-radius: 999px;
+    border: 2px solid rgb(var(--iter-background));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--iter-text-faint));
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-iter-surface/70 backdrop-blur-xl border border-iter-border/80;
+  }
+
+  .card-surface {
+    @apply bg-iter-surface border border-iter-border rounded-2xl shadow-card;
+  }
+
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-iter-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-iter-bg;
+  }
+}
+
+/* ---- Impressão / exportação de relatórios ---- */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111318 !important;
+  }
+
+  .print-area {
+    display: block !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}
