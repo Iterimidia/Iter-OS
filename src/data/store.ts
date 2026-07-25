@@ -199,7 +199,11 @@ export const useDataStore = create<DataState>()(
     {
       name: 'iteros-data',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 2,
+      // Sobe para forçar reset de qualquer localStorage já persistido com os
+      // dados de demonstração antigos — quem já tinha aberto o app antes
+      // desta limpeza volta a ver o estado vazio, não o cache antigo.
+      migrate: (_persistedState, persistedVersion) => (persistedVersion < 2 ? seed : (_persistedState as DataState)),
       // TODO(supabase): trocar esta camada de persistência por chamadas ao
       // Supabase (select/insert/update/delete), mantendo a mesma assinatura
       // das actions acima — os componentes não precisam mudar.
