@@ -21,6 +21,7 @@ function toFormState(client: Client | undefined, defaults: { plan: string; userI
     name: client?.name ?? '',
     status: client?.status ?? ('ativo' as ClientStatus),
     plan: client?.plan ?? defaults.plan,
+    monthlyValue: client ? String(client.monthlyValue) : '',
     services: client?.services ?? ([] as string[]),
     strategicResponsibleId: client?.strategicResponsibleId ?? defaults.userId,
     creativeResponsibleId: client?.creativeResponsibleId ?? defaults.userId,
@@ -56,10 +57,11 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) return
+    const payload = { ...form, monthlyValue: Number(form.monthlyValue) || 0 }
     if (client) {
-      updateClient(client.id, form)
+      updateClient(client.id, payload)
     } else {
-      addClient(form)
+      addClient(payload)
     }
     onClose()
   }
@@ -95,6 +97,18 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
                 </option>
               ))}
             </Select>
+          </div>
+          <div>
+            <Label htmlFor="monthlyValue">Valor mensal (R$)</Label>
+            <Input
+              id="monthlyValue"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.monthlyValue}
+              onChange={(e) => setForm({ ...form, monthlyValue: e.target.value })}
+              placeholder="0,00"
+            />
           </div>
           <div>
             <Label htmlFor="strategic">Responsável estratégico</Label>

@@ -125,6 +125,9 @@ export function ClientDetailPage() {
           </div>
           <div className="space-y-4">
             <div className="card-surface space-y-3 p-5">
+              <InfoRow label="Valor mensal">
+                <span className="font-semibold text-iter-success">{formatCurrency(client.monthlyValue)}</span>
+              </InfoRow>
               <InfoRow label="Responsável estratégico">
                 {strategic && (
                   <span className="flex items-center gap-2">

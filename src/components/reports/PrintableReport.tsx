@@ -104,8 +104,14 @@ export function PrintableReport({ report }: { report: ReportDefinition }) {
       {['rep_dashboard_geral', 'rep_dashboard_operacional'].includes(report.id) && (
         <PrintSection title="Clientes Ativos">
           <PrintTable
-            headers={['Cliente', 'Status', 'Plano', 'Responsável estratégico']}
-            rows={clients.map((c) => [c.name, CLIENT_STATUS_META[c.status].label, c.plan, responsavel(c.strategicResponsibleId)])}
+            headers={['Cliente', 'Status', 'Plano', 'Valor mensal', 'Responsável estratégico']}
+            rows={clients.map((c) => [
+              c.name,
+              CLIENT_STATUS_META[c.status].label,
+              c.plan,
+              formatCurrency(c.monthlyValue),
+              responsavel(c.strategicResponsibleId),
+            ])}
           />
         </PrintSection>
       )}

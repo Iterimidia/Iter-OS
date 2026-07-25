@@ -40,9 +40,10 @@ export function PrintableClientReport({ clientId }: { clientId: string }) {
       />
 
       <PrintSection title="Visão Geral">
-        <div className="mb-4 grid grid-cols-3 gap-4">
+        <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <PrintStat label="Status" value={CLIENT_STATUS_META[client.status].label} />
           <PrintStat label="Plano" value={client.plan} />
+          <PrintStat label="Valor mensal" value={formatCurrency(client.monthlyValue)} />
           <PrintStat label="Responsável estratégico" value={responsavel(client.strategicResponsibleId)} />
         </div>
         <p className="text-sm leading-relaxed text-gray-700">{client.briefing ?? 'Sem briefing registrado.'}</p>

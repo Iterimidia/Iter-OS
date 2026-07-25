@@ -71,6 +71,8 @@ export interface Client {
   name: string
   status: ClientStatus
   plan: string
+  /** Valor mensal contratado por este cliente (R$). */
+  monthlyValue: number
   services: string[]
   strategicResponsibleId: string
   creativeResponsibleId: string
