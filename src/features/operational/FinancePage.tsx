@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Banknote, PiggyBank, Plus, Receipt, ShieldAlert, Trash2, TrendingUp, Wallet } from 'lucide-react'
+import { AlertTriangle, Banknote, PiggyBank, Plus, Receipt, Search, ShieldAlert, Trash2, TrendingUp, Wallet } from 'lucide-react'
 import type { FinancialEntry, FinancialStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
@@ -10,6 +10,7 @@ import { StatCard } from '@/components/dashboard/StatCard'
 import { Tabs } from '@/components/ui/Tabs'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { Input, Select } from '@/components/ui/Input'
 import { StatusSelect } from '@/components/ui/StatusSelect'
 import { DataTable } from '@/components/tables/DataTable'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -29,6 +30,8 @@ export function FinancePage() {
 
   const [tab, setTab] = useState('resumo')
   const [modalType, setModalType] = useState<'receita' | 'despesa' | null>(null)
+  const [query, setQuery] = useState('')
+  const [clientFilter, setClientFilter] = useState('all')
 
   if (!canPerformAction(user, 'ver_financeiro')) {
     return (
@@ -67,6 +70,12 @@ export function FinancePage() {
     .sort((a, b) => b.total - a.total)
 
   const canDelete = canPerformAction(user, 'excluir')
+
+  function matchesFilters(f: FinancialEntry) {
+    if (clientFilter !== 'all' && f.clientId !== clientFilter) return false
+    if (query && !f.description.toLowerCase().includes(query.toLowerCase())) return false
+    return true
+  }
 
   function statusColumn(entry: FinancialEntry) {
     return (
@@ -116,6 +125,23 @@ export function FinancePage() {
         ]}
       />
 
+      {tab !== 'resumo' && (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-iter-faint" />
+            <Input placeholder="Buscar por descrição..." value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+          </div>
+          <Select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="sm:w-56">
+            <option value="all">Todos os clientes</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
       {tab === 'resumo' && (
         <div>
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-iter-faint">Clientes Pendentes</h3>
@@ -145,9 +171,9 @@ export function FinancePage() {
             </Button>
           </div>
           <DataTable
-            data={receitas}
+            data={receitas.filter(matchesFilters)}
             keyField={(f) => f.id}
-            emptyTitle="Nenhuma receita cadastrada"
+            emptyTitle="Nenhuma receita encontrada"
             columns={[
               { key: 'descricao', header: 'Descrição', render: (f) => f.description },
               { key: 'cliente', header: 'Cliente', render: (f) => clientName(f.clientId) },
@@ -168,9 +194,9 @@ export function FinancePage() {
             </Button>
           </div>
           <DataTable
-            data={despesas}
+            data={despesas.filter(matchesFilters)}
             keyField={(f) => f.id}
-            emptyTitle="Nenhuma despesa cadastrada"
+            emptyTitle="Nenhuma despesa encontrada"
             columns={[
               { key: 'descricao', header: 'Descrição', render: (f) => f.description },
               { key: 'categoria', header: 'Categoria', render: (f) => f.category },
@@ -185,9 +211,9 @@ export function FinancePage() {
 
       {tab === 'pendencias' && (
         <DataTable
-          data={pendencias}
+          data={pendencias.filter(matchesFilters)}
           keyField={(f) => f.id}
-          emptyTitle="Nenhuma pendência"
+          emptyTitle="Nenhuma pendência encontrada"
           columns={[
             { key: 'descricao', header: 'Descrição', render: (f) => f.description },
             { key: 'tipo', header: 'Tipo', render: (f) => <Badge tone="neutral">{f.type === 'receita' ? 'Receita' : 'Despesa'}</Badge> },

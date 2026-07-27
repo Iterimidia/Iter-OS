@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, Plus, Trash2 } from 'lucide-react'
-import type { Project, Task, TaskStatus } from '@/types'
+import { AlertTriangle, CheckCircle2, Plus, Search, Trash2 } from 'lucide-react'
+import type { Priority, Project, Task, TaskStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction } from '@/lib/permissions'
@@ -9,6 +9,7 @@ import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { Tabs } from '@/components/ui/Tabs'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { Input, Select } from '@/components/ui/Input'
 import { StatusSelect } from '@/components/ui/StatusSelect'
 import { KanbanBoard } from '@/components/tables/KanbanBoard'
 import { DataTable } from '@/components/tables/DataTable'
@@ -18,6 +19,7 @@ import { ProjectFormModal } from '@/features/operational/ProjectFormModal'
 
 const KANBAN_COLUMNS = TASK_STATUS_ORDER.map((id) => ({ id, label: TASK_STATUS_META[id].label }))
 const STATUS_OPTIONS = TASK_STATUS_ORDER.map((s) => ({ value: s, label: TASK_STATUS_META[s].label }))
+const PRIORITIES: Priority[] = ['baixa', 'media', 'alta', 'urgente']
 
 export function OperationPage() {
   const user = useCurrentUser()!
@@ -32,11 +34,32 @@ export function OperationPage() {
   const [tab, setTab] = useState('kanban')
   const [modalOpen, setModalOpen] = useState(false)
   const [projectModalOpen, setProjectModalOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [responsibleFilter, setResponsibleFilter] = useState('all')
+  const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all')
+  const [projectQuery, setProjectQuery] = useState('')
 
   const canDelete = canPerformAction(user, 'excluir')
 
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
+
+  const filteredTasks = tasks.filter((t) => {
+    if (responsibleFilter !== 'all' && t.responsibleId !== responsibleFilter) return false
+    if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
+    if (query) {
+      const q = query.toLowerCase()
+      const matches = t.title.toLowerCase().includes(q) || (clientName(t.clientId) ?? '').toLowerCase().includes(q)
+      if (!matches) return false
+    }
+    return true
+  })
+
+  const filteredProjects = projects.filter((p) => {
+    if (!projectQuery) return true
+    const q = projectQuery.toLowerCase()
+    return p.title.toLowerCase().includes(q) || (clientName(p.clientId) ?? '').toLowerCase().includes(q)
+  })
 
   function changeStatus(task: Task, status: TaskStatus) {
     updateTask(task.id, {
@@ -57,7 +80,7 @@ export function OperationPage() {
     }
   }
 
-  const aprovacoes = tasks.filter((t) => ['aguardando_revisao', 'aguardando_cliente', 'aprovado'].includes(t.status))
+  const aprovacoes = filteredTasks.filter((t) => ['aguardando_revisao', 'aguardando_cliente', 'aprovado'].includes(t.status))
 
   return (
     <div>
@@ -76,17 +99,42 @@ export function OperationPage() {
         active={tab}
         onChange={setTab}
         tabs={[
-          { id: 'kanban', label: 'Kanban Operacional', count: tasks.length },
-          { id: 'projetos', label: 'Projetos', count: projects.length },
-          { id: 'tarefas', label: 'Tarefas', count: tasks.length },
+          { id: 'kanban', label: 'Kanban Operacional', count: filteredTasks.length },
+          { id: 'projetos', label: 'Projetos', count: filteredProjects.length },
+          { id: 'tarefas', label: 'Tarefas', count: filteredTasks.length },
           { id: 'aprovacoes', label: 'Aprovações', count: aprovacoes.length },
         ]}
       />
 
+      {(tab === 'kanban' || tab === 'tarefas' || tab === 'aprovacoes') && (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-iter-faint" />
+            <Input placeholder="Buscar tarefa ou cliente..." value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+          </div>
+          <Select value={responsibleFilter} onChange={(e) => setResponsibleFilter(e.target.value)} className="sm:w-48">
+            <option value="all">Todos os responsáveis</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </Select>
+          <Select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as 'all' | Priority)} className="sm:w-40">
+            <option value="all">Toda prioridade</option>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {PRIORITY_META[p].label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
       {tab === 'kanban' && (
         <KanbanBoard
           columns={KANBAN_COLUMNS}
-          items={tasks}
+          items={filteredTasks}
           getId={(t) => t.id}
           getStatus={(t) => t.status}
           onStatusChange={changeStatus}
@@ -128,16 +176,20 @@ export function OperationPage() {
 
       {tab === 'projetos' && (
         <div>
-          <div className="mb-4 flex justify-end">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-iter-faint" />
+              <Input placeholder="Buscar projeto ou cliente..." value={projectQuery} onChange={(e) => setProjectQuery(e.target.value)} className="pl-9" />
+            </div>
             <Button icon={<Plus className="h-4 w-4" />} onClick={() => setProjectModalOpen(true)}>
               Novo projeto
             </Button>
           </div>
-          {projects.length === 0 ? (
-            <EmptyState title="Nenhum projeto cadastrado" />
+          {filteredProjects.length === 0 ? (
+            <EmptyState title="Nenhum projeto encontrado" description="Ajuste a busca ou cadastre um novo projeto." />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {projects.map((p) => (
+              {filteredProjects.map((p) => (
                 <div key={p.id} className="card-surface p-4">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-iter-text">{p.title}</p>
@@ -169,7 +221,7 @@ export function OperationPage() {
 
       {tab === 'tarefas' && (
         <DataTable
-          data={tasks.slice().sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))}
+          data={filteredTasks.slice().sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))}
           keyField={(t) => t.id}
           emptyTitle="Nenhuma tarefa"
           columns={[

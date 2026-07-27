@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Plus, Search, Trash2 } from 'lucide-react'
 import type { Lead, LeadStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
@@ -44,11 +44,26 @@ export function CommercialPage() {
   const [tab, setTab] = useState('funil')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [query, setQuery] = useState('')
 
   const canDelete = canPerformAction(user, 'excluir')
 
+  function matchesQuery(l: Lead) {
+    if (!query) return true
+    const q = query.toLowerCase()
+    return (
+      l.companyName.toLowerCase().includes(q) ||
+      l.responsibleName.toLowerCase().includes(q) ||
+      l.contact.toLowerCase().includes(q) ||
+      l.segment.toLowerCase().includes(q)
+    )
+  }
+
+  const filteredLeads = leads.filter(matchesQuery)
+
   const followUps = leads
     .filter((l) => l.followUpDate)
+    .filter(matchesQuery)
     .sort((a, b) => (a.followUpDate ?? '').localeCompare(b.followUpDate ?? ''))
 
   function updateStatus(lead: Lead, status: LeadStatus) {
@@ -99,16 +114,23 @@ export function CommercialPage() {
         active={tab}
         onChange={setTab}
         tabs={[
-          { id: 'funil', label: 'Funil', count: leads.length },
+          { id: 'funil', label: 'Funil', count: filteredLeads.length },
           { id: 'followups', label: 'Follow-ups', count: followUps.length },
           { id: 'servicos', label: 'Serviços Oferecidos' },
         ]}
       />
 
+      {tab !== 'servicos' && (
+        <div className="relative mb-4 w-full sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-iter-faint" />
+          <Input placeholder="Buscar por empresa, contato, segmento..." value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+        </div>
+      )}
+
       {tab === 'funil' && (
         <KanbanBoard
           columns={KANBAN_COLUMNS}
-          items={leads}
+          items={filteredLeads}
           getId={(l) => l.id}
           getStatus={(l) => l.status}
           onStatusChange={updateStatus}
@@ -122,7 +144,7 @@ export function CommercialPage() {
         <DataTable
           data={followUps}
           keyField={(l) => l.id}
-          emptyTitle="Nenhum follow-up agendado"
+          emptyTitle="Nenhum follow-up encontrado"
           columns={[
             { key: 'empresa', header: 'Empresa', render: (l) => <span className="font-medium text-iter-text">{l.companyName}</span> },
             { key: 'responsavel', header: 'Responsável', render: (l) => l.responsibleName },
