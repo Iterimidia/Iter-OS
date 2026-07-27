@@ -12,6 +12,7 @@
     "lint": "eslint . --ext ts,tsx"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.9",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "lucide-react": "^0.469.0",
