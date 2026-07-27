@@ -5,7 +5,6 @@ import { ArrowRight, BarChart3, Briefcase, Compass, Eye, EyeOff, Lock, Mail, Spa
 import { useAuthStore } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { getHomePathForUser } from '@/lib/permissions'
-import { ROLE_LABELS } from '@/lib/utils'
 import { GradientBackdrop } from '@/components/ui/GradientBackdrop'
 import { Logo } from '@/components/layout/Logo'
 import { Button } from '@/components/ui/Button'
@@ -22,14 +21,12 @@ export function LoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((s) => s.login)
   const appSettings = useDataStore((s) => s.appSettings)
-  const users = useDataStore((s) => s.users)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [showDemo, setShowDemo] = useState(false)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -47,12 +44,6 @@ export function LoginPage() {
       const user = useDataStore.getState().users.find((u) => u.email.trim().toLowerCase() === email.trim().toLowerCase())
       navigate(user ? getHomePathForUser(user) : '/selecionar-base', { replace: true })
     }, 350)
-  }
-
-  function fillDemo(demoEmail: string) {
-    setEmail(demoEmail)
-    setPassword('iter123')
-    setError(null)
   }
 
   return (
@@ -156,34 +147,6 @@ export function LoginPage() {
                 {!loading && <ArrowRight className="h-4 w-4" />}
               </Button>
             </form>
-
-            <div className="mt-6 border-t border-iter-border pt-4">
-              <button
-                type="button"
-                onClick={() => setShowDemo((v) => !v)}
-                className="focus-ring text-xs font-medium text-iter-muted hover:text-iter-text"
-              >
-                {showDemo ? 'Ocultar' : 'Ver'} contas de demonstração
-              </button>
-              {showDemo && (
-                <div className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                  {users.map((u) => (
-                    <button
-                      type="button"
-                      key={u.id}
-                      onClick={() => fillDemo(u.email)}
-                      className="focus-ring flex flex-col rounded-lg border border-iter-border bg-iter-surface-alt px-2.5 py-1.5 text-left transition-colors hover:border-iter-primary/40 hover:bg-iter-surface-hover"
-                    >
-                      <span className="text-xs font-medium text-iter-text">{u.name}</span>
-                      <span className="text-[10px] text-iter-faint">{ROLE_LABELS[u.role]}</span>
-                    </button>
-                  ))}
-                  <p className="col-span-full mt-1 text-[11px] text-iter-faint">
-                    Senha para todas: <span className="font-mono text-iter-muted">iter123</span>
-                  </p>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
