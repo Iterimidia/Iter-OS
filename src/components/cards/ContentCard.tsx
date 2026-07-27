@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle } from 'lucide-react'
+import { CheckCircle2, Circle, Trash2 } from 'lucide-react'
 import type { ContentItem, DemandStatus } from '@/types'
 import { CONTENT_FORMAT_LABELS, DEMAND_STATUS_META, DEMAND_STATUS_ORDER, cn, formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/Badge'
@@ -12,6 +12,7 @@ interface ContentCardProps {
   onStatusChange: (status: DemandStatus) => void
   onToggleInternalApproval: () => void
   onToggleClientApproval: () => void
+  onDelete?: () => void
 }
 
 export function ContentCard({
@@ -22,6 +23,7 @@ export function ContentCard({
   onStatusChange,
   onToggleInternalApproval,
   onToggleClientApproval,
+  onDelete,
 }: ContentCardProps) {
   return (
     <div className="card-surface p-4">
@@ -30,9 +32,14 @@ export function ContentCard({
           <p className="truncate text-sm font-medium text-iter-text">{item.title}</p>
           {item.theme && <p className="mt-0.5 truncate text-xs text-iter-faint">{item.theme}</p>}
         </div>
-        <Badge tone="neutral" className="shrink-0">
-          {CONTENT_FORMAT_LABELS[item.format]}
-        </Badge>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Badge tone="neutral">{CONTENT_FORMAT_LABELS[item.format]}</Badge>
+          {onDelete && (
+            <button onClick={onDelete} className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-danger" aria-label="Excluir peça">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

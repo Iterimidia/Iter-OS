@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Banknote, PiggyBank, Plus, Receipt, ShieldAlert, TrendingUp, Wallet } from 'lucide-react'
+import { AlertTriangle, Banknote, PiggyBank, Plus, Receipt, ShieldAlert, Trash2, TrendingUp, Wallet } from 'lucide-react'
 import type { FinancialEntry, FinancialStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
@@ -25,6 +25,7 @@ export function FinancePage() {
   const financialEntries = useDataStore((s) => s.financialEntries)
   const clients = useDataStore((s) => s.clients)
   const updateFinancialEntry = useDataStore((s) => s.updateFinancialEntry)
+  const removeFinancialEntry = useDataStore((s) => s.removeFinancialEntry)
 
   const [tab, setTab] = useState('resumo')
   const [modalType, setModalType] = useState<'receita' | 'despesa' | null>(null)
@@ -65,9 +66,26 @@ export function FinancePage() {
     .filter((c) => c.count > 0)
     .sort((a, b) => b.total - a.total)
 
+  const canDelete = canPerformAction(user, 'excluir')
+
   function statusColumn(entry: FinancialEntry) {
     return (
       <StatusSelect value={entry.status} onChange={(status) => updateFinancialEntry(entry.id, { status })} options={STATUS_OPTIONS} />
+    )
+  }
+
+  function handleDeleteEntry(entry: FinancialEntry) {
+    if (window.confirm(`Excluir o lançamento "${entry.description}"?`)) {
+      removeFinancialEntry(entry.id)
+    }
+  }
+
+  function deleteColumn(entry: FinancialEntry) {
+    if (!canDelete) return null
+    return (
+      <button onClick={() => handleDeleteEntry(entry)} className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger" aria-label="Excluir lançamento">
+        <Trash2 className="h-4 w-4" />
+      </button>
     )
   }
 
@@ -136,6 +154,7 @@ export function FinancePage() {
               { key: 'valor', header: 'Valor', render: (f) => formatCurrency(f.amount) },
               { key: 'vencimento', header: 'Vencimento', render: (f) => formatDate(f.dueDate) },
               { key: 'status', header: 'Status', render: statusColumn },
+              { key: 'acoes', header: '', render: deleteColumn },
             ]}
           />
         </>
@@ -158,6 +177,7 @@ export function FinancePage() {
               { key: 'valor', header: 'Valor', render: (f) => formatCurrency(f.amount) },
               { key: 'vencimento', header: 'Vencimento', render: (f) => formatDate(f.dueDate) },
               { key: 'status', header: 'Status', render: statusColumn },
+              { key: 'acoes', header: '', render: deleteColumn },
             ]}
           />
         </>
@@ -175,6 +195,7 @@ export function FinancePage() {
             { key: 'valor', header: 'Valor', render: (f) => formatCurrency(f.amount) },
             { key: 'vencimento', header: 'Vencimento', render: (f) => formatDate(f.dueDate) },
             { key: 'status', header: 'Status', render: statusColumn },
+            { key: 'acoes', header: '', render: deleteColumn },
           ]}
         />
       )}

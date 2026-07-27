@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { AlertTriangle, Plus } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
 import type { Lead, LeadStatus } from '@/types'
+import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
+import { canPerformAction } from '@/lib/permissions'
 import { LEAD_STATUS_META, LEAD_STATUS_ORDER, cn, formatCurrency, formatDate, isOverdue } from '@/lib/utils'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { Tabs } from '@/components/ui/Tabs'
@@ -32,14 +34,18 @@ const emptyForm = {
 }
 
 export function CommercialPage() {
+  const user = useCurrentUser()!
   const leads = useDataStore((s) => s.leads)
   const addLead = useDataStore((s) => s.addLead)
   const updateLead = useDataStore((s) => s.updateLead)
+  const removeLead = useDataStore((s) => s.removeLead)
   const appSettings = useDataStore((s) => s.appSettings)
 
   const [tab, setTab] = useState('funil')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
+
+  const canDelete = canPerformAction(user, 'excluir')
 
   const followUps = leads
     .filter((l) => l.followUpDate)
@@ -47,6 +53,12 @@ export function CommercialPage() {
 
   function updateStatus(lead: Lead, status: LeadStatus) {
     updateLead(lead.id, { status })
+  }
+
+  function handleDeleteLead(lead: Lead) {
+    if (window.confirm(`Excluir o lead "${lead.companyName}"?`)) {
+      removeLead(lead.id)
+    }
   }
 
   function handleSubmit(e: FormEvent) {
@@ -100,7 +112,9 @@ export function CommercialPage() {
           getId={(l) => l.id}
           getStatus={(l) => l.status}
           onStatusChange={updateStatus}
-          renderCard={(lead) => <LeadCard lead={lead} onStatusChange={(status) => updateStatus(lead, status)} />}
+          renderCard={(lead) => (
+            <LeadCard lead={lead} onStatusChange={(status) => updateStatus(lead, status)} onDelete={canDelete ? () => handleDeleteLead(lead) : undefined} />
+          )}
         />
       )}
 
@@ -129,6 +143,23 @@ export function CommercialPage() {
               ),
             },
             { key: 'proxima', header: 'Próxima ação', render: (l) => <span className="text-iter-muted">{l.nextAction ?? '—'}</span> },
+            ...(canDelete
+              ? [
+                  {
+                    key: 'acoes',
+                    header: '',
+                    render: (l: Lead) => (
+                      <button
+                        onClick={() => handleDeleteLead(l)}
+                        className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger"
+                        aria-label="Excluir lead"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ),
+                  },
+                ]
+              : []),
           ]}
         />
       )}
@@ -223,12 +254,19 @@ export function CommercialPage() {
   )
 }
 
-function LeadCard({ lead, onStatusChange }: { lead: Lead; onStatusChange: (status: LeadStatus) => void }) {
+function LeadCard({ lead, onStatusChange, onDelete }: { lead: Lead; onStatusChange: (status: LeadStatus) => void; onDelete?: () => void }) {
   return (
     <div className="card-surface space-y-2 p-3">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-semibold leading-snug text-iter-text">{lead.companyName}</p>
-        {lead.estimatedValue > 0 && <span className="shrink-0 text-[11px] font-medium text-iter-success">{formatCurrency(lead.estimatedValue)}</span>}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {lead.estimatedValue > 0 && <span className="text-[11px] font-medium text-iter-success">{formatCurrency(lead.estimatedValue)}</span>}
+          {onDelete && (
+            <button onClick={onDelete} className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-danger" aria-label="Excluir lead">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       {lead.serviceInterest && <Badge tone="neutral">{lead.serviceInterest}</Badge>}
       <p className="text-[11px] text-iter-muted">{lead.responsibleName || '—'}</p>

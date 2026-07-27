@@ -19,6 +19,7 @@ export function ContentPage() {
   const clients = useDataStore((s) => s.clients)
   const users = useDataStore((s) => s.users)
   const updateContentItem = useDataStore((s) => s.updateContentItem)
+  const removeContentItem = useDataStore((s) => s.removeContentItem)
 
   const [format, setFormat] = useState<'all' | ContentFormat>('all')
   const [query, setQuery] = useState('')
@@ -31,6 +32,13 @@ export function ContentPage() {
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
   const canApprove = canPerformAction(user, 'aprovar')
+  const canDelete = canPerformAction(user, 'excluir')
+
+  function handleDelete(item: { id: string; title: string }) {
+    if (window.confirm(`Excluir a peça "${item.title}"?`)) {
+      removeContentItem(item.id)
+    }
+  }
 
   const formatTabs = CONTENT_FORMAT_ORDER.map((f) => ({
     id: f,
@@ -76,6 +84,7 @@ export function ContentPage() {
               onStatusChange={(status) => updateContentItem(item.id, { status })}
               onToggleInternalApproval={() => updateContentItem(item.id, { internalApproval: !item.internalApproval })}
               onToggleClientApproval={() => updateContentItem(item.id, { clientApproval: !item.clientApproval })}
+              onDelete={canDelete ? () => handleDelete(item) : undefined}
             />
           ))}
         </div>

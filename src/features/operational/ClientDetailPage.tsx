@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, ExternalLink, Pencil, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Download, ExternalLink, Pencil, Trash2, TriangleAlert } from 'lucide-react'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canAccessClient, canEdit as canEditResource, canExport, canPerformAction } from '@/lib/permissions'
@@ -28,6 +28,7 @@ export function ClientDetailPage() {
   const navigate = useNavigate()
   const user = useCurrentUser()!
   const client = useDataStore((s) => s.clients.find((c) => c.id === clientId))
+  const removeClient = useDataStore((s) => s.removeClient)
   const users = useDataStore((s) => s.users)
   const projects = useDataStore((s) => s.projects.filter((p) => p.clientId === clientId))
   const tasks = useDataStore((s) => s.tasks.filter((t) => t.clientId === clientId))
@@ -53,12 +54,22 @@ export function ClientDetailPage() {
     )
   }
 
+  const clientIdSafe = client.id
+  const clientNameSafe = client.name
   const findUser = (id: string) => users.find((u) => u.id === id)
   const strategic = findUser(client.strategicResponsibleId)
   const creative = findUser(client.creativeResponsibleId)
   const canEditClient = canEditResource(user, { clientId: client.id })
+  const canDeleteClient = canPerformAction(user, 'excluir')
   const canExportClient = canExport(user, mockReports.find((r) => r.id === 'rep_cliente')!)
   const canSeeFinance = canPerformAction(user, 'ver_financeiro')
+
+  function handleDelete() {
+    if (window.confirm(`Excluir "${clientNameSafe}"? Isso não apaga projetos, tarefas ou lançamentos já vinculados a ele.`)) {
+      removeClient(clientIdSafe)
+      navigate('/operacional/clientes')
+    }
+  }
 
   const tabs = [
     { id: 'geral', label: 'Visão Geral' },
@@ -96,6 +107,11 @@ export function ClientDetailPage() {
           {canEditClient && (
             <Button variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditOpen(true)}>
               Editar
+            </Button>
+          )}
+          {canDeleteClient && (
+            <Button variant="danger" icon={<Trash2 className="h-4 w-4" />} onClick={handleDelete}>
+              Excluir
             </Button>
           )}
         </div>

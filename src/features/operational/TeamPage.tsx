@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, ShieldCheck, UserX } from 'lucide-react'
+import { Plus, ShieldCheck, Trash2, UserX } from 'lucide-react'
 import type { User } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
@@ -19,6 +19,7 @@ export function TeamPage() {
   const users = useDataStore((s) => s.users)
   const tasks = useDataStore((s) => s.tasks)
   const updateUser = useDataStore((s) => s.updateUser)
+  const removeUser = useDataStore((s) => s.removeUser)
 
   const [tab, setTab] = useState('usuarios')
   const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -26,6 +27,16 @@ export function TeamPage() {
 
   const canManage = canPerformAction(currentUser, 'gerenciar_usuarios')
   const seteDiasAtras = addDaysIso(-7)
+
+  function handleDeleteUser(u: User) {
+    if (u.id === currentUser.id) {
+      window.alert('Você não pode excluir a sua própria conta enquanto está com ela ativa.')
+      return
+    }
+    if (window.confirm(`Excluir o usuário "${u.name}"? Ele perderá o acesso imediatamente.`)) {
+      removeUser(u.id)
+    }
+  }
 
   const workload = users.map((u) => {
     const userTasks = tasks.filter((t) => t.responsibleId === u.id)
@@ -92,6 +103,11 @@ export function TeamPage() {
                   >
                     <ShieldCheck className="h-4 w-4" />
                   </Button>
+                  {u.id !== currentUser.id && (
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(u)} title="Excluir usuário">
+                      <Trash2 className="h-4 w-4 text-iter-danger" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ExternalLink, Plus, Search } from 'lucide-react'
+import type { MouseEvent } from 'react'
+import { ExternalLink, Plus, Search, Trash2 } from 'lucide-react'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction, canViewFile } from '@/lib/permissions'
@@ -20,14 +21,24 @@ export function FilesBrowser({ title, description }: FilesBrowserProps) {
   const user = useCurrentUser()!
   const files = useDataStore((s) => s.files)
   const clients = useDataStore((s) => s.clients)
+  const removeFile = useDataStore((s) => s.removeFile)
 
   const [query, setQuery] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
 
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name
+  const canDelete = canPerformAction(user, 'excluir')
 
   const visible = files.filter((f) => canViewFile(user, f) && f.name.toLowerCase().includes(query.toLowerCase()))
   const grouped = groupBy(visible, (f) => f.category)
+
+  function handleDelete(e: MouseEvent, file: { id: string; name: string }) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (window.confirm(`Excluir o arquivo "${file.name}"?`)) {
+      removeFile(file.id)
+    }
+  }
 
   return (
     <div>
@@ -72,7 +83,18 @@ export function FilesBrowser({ title, description }: FilesBrowserProps) {
                       </div>
                       {file.description && <p className="mt-1.5 line-clamp-2 text-xs text-iter-muted">{file.description}</p>}
                     </div>
-                    <ExternalLink className="h-4 w-4 shrink-0 text-iter-faint" />
+                    <div className="flex shrink-0 items-center gap-2">
+                      {canDelete && (
+                        <button
+                          onClick={(e) => handleDelete(e, file)}
+                          className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-danger"
+                          aria-label="Excluir arquivo"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      <ExternalLink className="h-4 w-4 text-iter-faint" />
+                    </div>
                   </a>
                 ))}
               </div>

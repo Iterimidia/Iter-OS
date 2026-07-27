@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, Plus } from 'lucide-react'
-import type { Task, TaskStatus } from '@/types'
+import { AlertTriangle, CheckCircle2, Plus, Trash2 } from 'lucide-react'
+import type { Project, Task, TaskStatus } from '@/types'
+import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
+import { canPerformAction } from '@/lib/permissions'
 import { cn, formatDate, isOverdue, PRIORITY_META, PROJECT_STATUS_META, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { Tabs } from '@/components/ui/Tabs'
@@ -12,19 +14,26 @@ import { KanbanBoard } from '@/components/tables/KanbanBoard'
 import { DataTable } from '@/components/tables/DataTable'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { TaskFormModal } from '@/features/operational/TaskFormModal'
+import { ProjectFormModal } from '@/features/operational/ProjectFormModal'
 
 const KANBAN_COLUMNS = TASK_STATUS_ORDER.map((id) => ({ id, label: TASK_STATUS_META[id].label }))
 const STATUS_OPTIONS = TASK_STATUS_ORDER.map((s) => ({ value: s, label: TASK_STATUS_META[s].label }))
 
 export function OperationPage() {
+  const user = useCurrentUser()!
   const tasks = useDataStore((s) => s.tasks.filter((t) => t.area === 'operacional'))
   const projects = useDataStore((s) => s.projects)
   const clients = useDataStore((s) => s.clients)
   const users = useDataStore((s) => s.users)
   const updateTask = useDataStore((s) => s.updateTask)
+  const removeTask = useDataStore((s) => s.removeTask)
+  const removeProject = useDataStore((s) => s.removeProject)
 
   const [tab, setTab] = useState('kanban')
   const [modalOpen, setModalOpen] = useState(false)
+  const [projectModalOpen, setProjectModalOpen] = useState(false)
+
+  const canDelete = canPerformAction(user, 'excluir')
 
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
@@ -34,6 +43,18 @@ export function OperationPage() {
       status,
       completedAt: status === 'concluido' ? new Date().toISOString().slice(0, 10) : task.completedAt,
     })
+  }
+
+  function handleDeleteTask(task: Task) {
+    if (window.confirm(`Excluir a tarefa "${task.title}"?`)) {
+      removeTask(task.id)
+    }
+  }
+
+  function handleDeleteProject(project: Project) {
+    if (window.confirm(`Excluir o projeto "${project.title}"? Isso não apaga as tarefas já vinculadas a ele.`)) {
+      removeProject(project.id)
+    }
   }
 
   const aprovacoes = tasks.filter((t) => ['aguardando_revisao', 'aguardando_cliente', 'aprovado'].includes(t.status))
@@ -71,7 +92,18 @@ export function OperationPage() {
           onStatusChange={changeStatus}
           renderCard={(task) => (
             <div className="card-surface space-y-2 p-3">
-              <p className="text-xs font-semibold leading-snug text-iter-text">{task.title}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-semibold leading-snug text-iter-text">{task.title}</p>
+                {canDelete && (
+                  <button
+                    onClick={() => handleDeleteTask(task)}
+                    className="focus-ring shrink-0 rounded-md p-0.5 text-iter-faint hover:text-iter-danger"
+                    aria-label="Excluir tarefa"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {clientName(task.clientId) && <Badge tone="neutral">{clientName(task.clientId)}</Badge>}
                 <Badge tone={PRIORITY_META[task.priority].tone}>{PRIORITY_META[task.priority].label}</Badge>
@@ -94,27 +126,46 @@ export function OperationPage() {
         />
       )}
 
-      {tab === 'projetos' &&
-        (projects.length === 0 ? (
-          <EmptyState title="Nenhum projeto cadastrado" />
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((p) => (
-              <div key={p.id} className="card-surface p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-iter-text">{p.title}</p>
-                  <Badge tone={PROJECT_STATUS_META[p.status].tone}>{PROJECT_STATUS_META[p.status].label}</Badge>
-                </div>
-                <p className="mt-1 text-xs text-iter-faint">{clientName(p.clientId)}</p>
-                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-iter-muted">{p.description}</p>
-                <div className="mt-3 flex items-center justify-between text-[11px] text-iter-faint">
-                  <span>Prazo: {formatDate(p.endDate)}</span>
-                  <Badge tone={PRIORITY_META[p.priority].tone}>{PRIORITY_META[p.priority].label}</Badge>
-                </div>
-              </div>
-            ))}
+      {tab === 'projetos' && (
+        <div>
+          <div className="mb-4 flex justify-end">
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setProjectModalOpen(true)}>
+              Novo projeto
+            </Button>
           </div>
-        ))}
+          {projects.length === 0 ? (
+            <EmptyState title="Nenhum projeto cadastrado" />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {projects.map((p) => (
+                <div key={p.id} className="card-surface p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-iter-text">{p.title}</p>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Badge tone={PROJECT_STATUS_META[p.status].tone}>{PROJECT_STATUS_META[p.status].label}</Badge>
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDeleteProject(p)}
+                          className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-danger"
+                          aria-label="Excluir projeto"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-iter-faint">{clientName(p.clientId)}</p>
+                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-iter-muted">{p.description}</p>
+                  <div className="mt-3 flex items-center justify-between text-[11px] text-iter-faint">
+                    <span>Prazo: {formatDate(p.endDate)}</span>
+                    <Badge tone={PRIORITY_META[p.priority].tone}>{PRIORITY_META[p.priority].label}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {tab === 'tarefas' && (
         <DataTable
@@ -136,6 +187,23 @@ export function OperationPage() {
               header: 'Status',
               render: (t) => <StatusSelect value={t.status} onChange={(status) => changeStatus(t, status)} options={STATUS_OPTIONS} />,
             },
+            ...(canDelete
+              ? [
+                  {
+                    key: 'acoes',
+                    header: '',
+                    render: (t: Task) => (
+                      <button
+                        onClick={() => handleDeleteTask(t)}
+                        className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger"
+                        aria-label="Excluir tarefa"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ),
+                  },
+                ]
+              : []),
           ]}
         />
       )}
@@ -160,6 +228,7 @@ export function OperationPage() {
         ))}
 
       <TaskFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <ProjectFormModal open={projectModalOpen} onClose={() => setProjectModalOpen(false)} />
     </div>
   )
 }
