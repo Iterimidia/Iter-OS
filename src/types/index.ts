@@ -264,7 +264,7 @@ export interface DashboardCardDefinition {
   visibleToRoles: RoleId[]
 }
 
-export type IntegrationStatusKind = 'em_breve' | 'nao_conectado' | 'planejado'
+export type IntegrationStatusKind = 'conectado' | 'em_breve' | 'nao_conectado' | 'planejado'
 
 export interface IntegrationStatus {
   id: string

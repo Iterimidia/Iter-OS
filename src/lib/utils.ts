@@ -144,6 +144,7 @@ export const PRIORITY_META: Record<Priority, StatusMeta> = {
 }
 
 export const INTEGRATION_STATUS_META: Record<IntegrationStatusKind, StatusMeta> = {
+  conectado: { label: 'Conectado', tone: 'success' },
   em_breve: { label: 'Em breve', tone: 'warning' },
   nao_conectado: { label: 'Não conectado', tone: 'neutral' },
   planejado: { label: 'Planejado', tone: 'info' },

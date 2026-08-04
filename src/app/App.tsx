@@ -1,8 +1,11 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { BaseSelectPage } from '@/features/base-select/BaseSelectPage'
 import { NoAccessPage } from '@/app/NoAccessPage'
 import { RequireArea, RequireAuth, RequireBase, RootRedirect, BaseIndexRedirect } from '@/app/guards'
+import { LoadingScreen } from '@/app/LoadingScreen'
+import { useDataStore } from '@/data/store'
 import { PrintReportPage } from '@/features/reports/PrintReportPage'
 import { PrintClientReportPage } from '@/features/reports/PrintClientReportPage'
 
@@ -29,6 +32,14 @@ import { CreativeFilesPage } from '@/features/creative/CreativeFilesPage'
 import { ApprovalsPage } from '@/features/creative/ApprovalsPage'
 
 export function App() {
+  const initialized = useDataStore((s) => s.initialized)
+
+  useEffect(() => {
+    useDataStore.getState().initialize()
+  }, [])
+
+  if (!initialized) return <LoadingScreen />
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
