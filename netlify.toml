@@ -2,6 +2,14 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  # Chave publicável (anon) do Supabase — segura pra expor no bundle do
+  # cliente por design (o acesso real é controlado por RLS no banco, não
+  # por sigilo desta chave). Definida aqui porque a configuração de env
+  # vars pelo painel/API do Netlify não estava sendo aplicada ao build.
+  VITE_SUPABASE_URL = "https://scchivyltudzbjbsveva.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ge5DL89l8N8vdXnhc-bH6w_LvOUkXed"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
