@@ -66,13 +66,19 @@ export interface AppArea {
 
 export type ClientStatus = 'ativo' | 'em_atencao' | 'em_risco' | 'inativo'
 
+/** 'fixo' = valor mensal fechado. 'percentual' = comissão sobre vendas do cliente. */
+export type BillingType = 'fixo' | 'percentual'
+
 export interface Client {
   id: string
   name: string
   status: ClientStatus
   plan: string
-  /** Valor mensal contratado por este cliente (R$). */
+  billingType: BillingType
+  /** Valor mensal contratado por este cliente (R$) — usado quando billingType é 'fixo'. */
   monthlyValue: number
+  /** Percentual sobre as vendas do cliente — usado quando billingType é 'percentual'. */
+  commissionPercentage?: number
   services: string[]
   strategicResponsibleId: string
   creativeResponsibleId: string
