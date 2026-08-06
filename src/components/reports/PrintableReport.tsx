@@ -5,6 +5,7 @@ import {
   CLIENT_STATUS_META,
   DEMAND_STATUS_META,
   FINANCIAL_STATUS_META,
+  formatClientBilling,
   formatCurrency,
   formatDate,
   isOverdue,
@@ -109,7 +110,7 @@ export function PrintableReport({ report }: { report: ReportDefinition }) {
               c.name,
               CLIENT_STATUS_META[c.status].label,
               c.plan,
-              formatCurrency(c.monthlyValue),
+              formatClientBilling(c),
               responsavel(c.strategicResponsibleId),
             ])}
           />

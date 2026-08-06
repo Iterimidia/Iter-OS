@@ -10,6 +10,7 @@ import {
   CLIENT_STATUS_META,
   DEMAND_STATUS_META,
   FINANCIAL_STATUS_META,
+  formatClientBilling,
   formatCurrency,
   formatDate,
   PROJECT_STATUS_META,
@@ -141,8 +142,8 @@ export function ClientDetailPage() {
           </div>
           <div className="space-y-4">
             <div className="card-surface space-y-3 p-5">
-              <InfoRow label="Valor mensal">
-                <span className="font-semibold text-iter-success">{formatCurrency(client.monthlyValue)}</span>
+              <InfoRow label={client.billingType === 'percentual' ? 'Comissão' : 'Valor mensal'}>
+                <span className="font-semibold text-iter-success">{formatClientBilling(client)}</span>
               </InfoRow>
               <InfoRow label="Responsável estratégico">
                 {strategic && (
