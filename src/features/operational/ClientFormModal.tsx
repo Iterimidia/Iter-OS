@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { BillingType, Client, ClientStatus } from '@/types'
+import type { Client, ClientStatus } from '@/types'
 import { useDataStore } from '@/data/store'
-import { BILLING_TYPE_LABELS, CLIENT_STATUS_META } from '@/lib/utils'
+import { CLIENT_STATUS_META } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Label, Select, Textarea } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -15,16 +15,13 @@ interface ClientFormModalProps {
 }
 
 const STATUS_OPTIONS: ClientStatus[] = ['ativo', 'em_atencao', 'em_risco', 'inativo']
-const BILLING_TYPE_OPTIONS: BillingType[] = ['fixo', 'percentual']
 
 function toFormState(client: Client | undefined, defaults: { plan: string; userId: string }) {
   return {
     name: client?.name ?? '',
     status: client?.status ?? ('ativo' as ClientStatus),
     plan: client?.plan ?? defaults.plan,
-    billingType: client?.billingType ?? ('fixo' as BillingType),
     monthlyValue: client ? String(client.monthlyValue) : '',
-    commissionPercentage: client?.commissionPercentage !== undefined ? String(client.commissionPercentage) : '',
     services: client?.services ?? ([] as string[]),
     strategicResponsibleId: client?.strategicResponsibleId ?? defaults.userId,
     creativeResponsibleId: client?.creativeResponsibleId ?? defaults.userId,
@@ -60,11 +57,7 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) return
-    const payload = {
-      ...form,
-      monthlyValue: form.billingType === 'fixo' ? Number(form.monthlyValue) || 0 : 0,
-      commissionPercentage: form.billingType === 'percentual' ? Number(form.commissionPercentage) || 0 : undefined,
-    }
+    const payload = { ...form, monthlyValue: Number(form.monthlyValue) || 0 }
     if (client) {
       updateClient(client.id, payload)
     } else {
@@ -106,43 +99,17 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
             </Select>
           </div>
           <div>
-            <Label htmlFor="billingType">Tipo de cobrança</Label>
-            <Select id="billingType" value={form.billingType} onChange={(e) => setForm({ ...form, billingType: e.target.value as BillingType })}>
-              {BILLING_TYPE_OPTIONS.map((b) => (
-                <option key={b} value={b}>
-                  {BILLING_TYPE_LABELS[b]}
-                </option>
-              ))}
-            </Select>
+            <Label htmlFor="monthlyValue">Valor mensal (R$)</Label>
+            <Input
+              id="monthlyValue"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.monthlyValue}
+              onChange={(e) => setForm({ ...form, monthlyValue: e.target.value })}
+              placeholder="0,00"
+            />
           </div>
-          {form.billingType === 'fixo' ? (
-            <div>
-              <Label htmlFor="monthlyValue">Valor mensal (R$)</Label>
-              <Input
-                id="monthlyValue"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.monthlyValue}
-                onChange={(e) => setForm({ ...form, monthlyValue: e.target.value })}
-                placeholder="0,00"
-              />
-            </div>
-          ) : (
-            <div>
-              <Label htmlFor="commissionPercentage">Percentual sobre vendas (%)</Label>
-              <Input
-                id="commissionPercentage"
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={form.commissionPercentage}
-                onChange={(e) => setForm({ ...form, commissionPercentage: e.target.value })}
-                placeholder="0,0"
-              />
-            </div>
-          )}
           <div>
             <Label htmlFor="strategic">Responsável estratégico</Label>
             <Select id="strategic" value={form.strategicResponsibleId} onChange={(e) => setForm({ ...form, strategicResponsibleId: e.target.value })}>

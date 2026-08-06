@@ -1,5 +1,5 @@
 import type { Client, User } from '@/types'
-import { CLIENT_STATUS_META, formatClientBilling } from '@/lib/utils'
+import { CLIENT_STATUS_META, formatCurrency } from '@/lib/utils'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 
@@ -64,10 +64,10 @@ export function ClientCard({ client, strategicResponsible, creativeResponsible, 
         </div>
         <span className="text-right text-[11px] text-iter-faint">
           {client.plan}
-          {(client.billingType === 'percentual' || client.monthlyValue > 0) && (
+          {client.monthlyValue > 0 && (
             <>
               {' · '}
-              <span className="font-medium text-iter-success">{formatClientBilling(client)}</span>
+              <span className="font-medium text-iter-success">{formatCurrency(client.monthlyValue)}/mês</span>
             </>
           )}
         </span>

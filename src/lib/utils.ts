@@ -3,8 +3,6 @@ import { format, isBefore, isToday, parseISO, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type {
   ActionPermission,
-  BillingType,
-  Client,
   ClientStatus,
   ContentFormat,
   DemandStatus,
@@ -32,19 +30,6 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 export function formatCurrency(value: number): string {
   return currencyFormatter.format(value)
-}
-
-export const BILLING_TYPE_LABELS: Record<BillingType, string> = {
-  fixo: 'Valor fixo mensal',
-  percentual: 'Percentual sobre vendas',
-}
-
-/** Texto curto de cobrança do cliente, pronto pra exibir em card/detalhe/relatório. */
-export function formatClientBilling(client: Pick<Client, 'billingType' | 'monthlyValue' | 'commissionPercentage'>): string {
-  if (client.billingType === 'percentual') {
-    return `${client.commissionPercentage ?? 0}% sobre vendas`
-  }
-  return `${formatCurrency(client.monthlyValue)}/mês`
 }
 
 export function formatDate(iso: string, pattern = 'dd/MM/yyyy'): string {
