@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { AlertTriangle, CheckCircle2, Plus, Search, Trash2 } from 'lucide-react'
-import type { Priority, Project, Task, TaskStatus } from '@/types'
+import type { Priority, Task, TaskStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction } from '@/lib/permissions'
-import { cn, formatDate, isOverdue, PRIORITY_META, PROJECT_STATUS_META, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
+import { cn, formatDate, isOverdue, PRIORITY_META, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { Tabs } from '@/components/ui/Tabs'
 import { Button } from '@/components/ui/Button'
@@ -15,7 +15,6 @@ import { KanbanBoard } from '@/components/tables/KanbanBoard'
 import { DataTable } from '@/components/tables/DataTable'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { TaskFormModal } from '@/features/operational/TaskFormModal'
-import { ProjectFormModal } from '@/features/operational/ProjectFormModal'
 
 const KANBAN_COLUMNS = TASK_STATUS_ORDER.map((id) => ({ id, label: TASK_STATUS_META[id].label }))
 const STATUS_OPTIONS = TASK_STATUS_ORDER.map((s) => ({ value: s, label: TASK_STATUS_META[s].label }))
@@ -24,20 +23,16 @@ const PRIORITIES: Priority[] = ['baixa', 'media', 'alta', 'urgente']
 export function OperationPage() {
   const user = useCurrentUser()!
   const tasks = useDataStore((s) => s.tasks.filter((t) => t.area === 'operacional'))
-  const projects = useDataStore((s) => s.projects)
   const clients = useDataStore((s) => s.clients)
   const users = useDataStore((s) => s.users)
   const updateTask = useDataStore((s) => s.updateTask)
   const removeTask = useDataStore((s) => s.removeTask)
-  const removeProject = useDataStore((s) => s.removeProject)
 
   const [tab, setTab] = useState('kanban')
   const [modalOpen, setModalOpen] = useState(false)
-  const [projectModalOpen, setProjectModalOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [responsibleFilter, setResponsibleFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all')
-  const [projectQuery, setProjectQuery] = useState('')
 
   const canDelete = canPerformAction(user, 'excluir')
 
@@ -55,12 +50,6 @@ export function OperationPage() {
     return true
   })
 
-  const filteredProjects = projects.filter((p) => {
-    if (!projectQuery) return true
-    const q = projectQuery.toLowerCase()
-    return p.title.toLowerCase().includes(q) || (clientName(p.clientId) ?? '').toLowerCase().includes(q)
-  })
-
   function changeStatus(task: Task, status: TaskStatus) {
     updateTask(task.id, {
       status,
@@ -74,19 +63,13 @@ export function OperationPage() {
     }
   }
 
-  function handleDeleteProject(project: Project) {
-    if (window.confirm(`Excluir o projeto "${project.title}"? Isso não apaga as tarefas já vinculadas a ele.`)) {
-      removeProject(project.id)
-    }
-  }
-
   const aprovacoes = filteredTasks.filter((t) => ['aguardando_revisao', 'aguardando_cliente', 'aprovado'].includes(t.status))
 
   return (
     <div>
       <SectionHeader
         title="Operação"
-        description="Projetos, tarefas gerais, prazos e aprovações da execução."
+        description="Tarefas gerais, prazos e aprovações da execução."
         action={
           <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
             Nova tarefa
@@ -100,7 +83,6 @@ export function OperationPage() {
         onChange={setTab}
         tabs={[
           { id: 'kanban', label: 'Kanban Operacional', count: filteredTasks.length },
-          { id: 'projetos', label: 'Projetos', count: filteredProjects.length },
           { id: 'tarefas', label: 'Tarefas', count: filteredTasks.length },
           { id: 'aprovacoes', label: 'Aprovações', count: aprovacoes.length },
         ]}
@@ -174,51 +156,6 @@ export function OperationPage() {
         />
       )}
 
-      {tab === 'projetos' && (
-        <div>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-iter-faint" />
-              <Input placeholder="Buscar projeto ou cliente..." value={projectQuery} onChange={(e) => setProjectQuery(e.target.value)} className="pl-9" />
-            </div>
-            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setProjectModalOpen(true)}>
-              Novo projeto
-            </Button>
-          </div>
-          {filteredProjects.length === 0 ? (
-            <EmptyState title="Nenhum projeto encontrado" description="Ajuste a busca ou cadastre um novo projeto." />
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredProjects.map((p) => (
-                <div key={p.id} className="card-surface p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-iter-text">{p.title}</p>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <Badge tone={PROJECT_STATUS_META[p.status].tone}>{PROJECT_STATUS_META[p.status].label}</Badge>
-                      {canDelete && (
-                        <button
-                          onClick={() => handleDeleteProject(p)}
-                          className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-danger"
-                          aria-label="Excluir projeto"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-iter-faint">{clientName(p.clientId)}</p>
-                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-iter-muted">{p.description}</p>
-                  <div className="mt-3 flex items-center justify-between text-[11px] text-iter-faint">
-                    <span>Prazo: {formatDate(p.endDate)}</span>
-                    <Badge tone={PRIORITY_META[p.priority].tone}>{PRIORITY_META[p.priority].label}</Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {tab === 'tarefas' && (
         <DataTable
           data={filteredTasks.slice().sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))}
@@ -280,7 +217,6 @@ export function OperationPage() {
         ))}
 
       <TaskFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
-      <ProjectFormModal open={projectModalOpen} onClose={() => setProjectModalOpen(false)} />
     </div>
   )
 }

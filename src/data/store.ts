@@ -272,6 +272,22 @@ export const useDataStore = create<DataState>()((set, get) => ({
       .then(({ error }) => {
         if (reportError('criar cliente', 'clients', error)) set((s) => ({ clients: s.clients.filter((c) => c.id !== client.id) }))
       })
+    // Cliente com valor fixo já entra no Financeiro (e por consequência no
+    // dashboard da Direção, que lê da mesma coleção) como receita prevista
+    // deste mês. Cliente por percentual não tem valor conhecido de antemão,
+    // então não gera lançamento — isso continua manual.
+    if (client.billingType === 'fixo' && client.monthlyValue > 0) {
+      get().addFinancialEntry({
+        type: 'receita',
+        category: 'Mensalidade',
+        description: `Mensalidade — ${client.name}`,
+        clientId: client.id,
+        amount: client.monthlyValue,
+        dueDate: todayIso(),
+        status: 'previsto',
+        recurring: true,
+      })
+    }
     return client
   },
   updateClient: (id, patch) => {

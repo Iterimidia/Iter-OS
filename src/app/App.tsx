@@ -18,6 +18,7 @@ import { DirectionPage } from '@/features/operational/DirectionPage'
 import { CommercialPage } from '@/features/operational/CommercialPage'
 import { ClientsListPage } from '@/features/operational/ClientsListPage'
 import { ClientDetailPage } from '@/features/operational/ClientDetailPage'
+import { ProjectsPage } from '@/features/operational/ProjectsPage'
 import { OperationPage } from '@/features/operational/OperationPage'
 import { FinancePage } from '@/features/operational/FinancePage'
 import { TeamPage } from '@/features/operational/TeamPage'
@@ -79,6 +80,9 @@ export function App() {
           <Route element={<RequireArea areaId="operacional:clientes" />}>
             <Route path="/operacional/clientes" element={<ClientsListPage />} />
             <Route path="/operacional/clientes/:clientId" element={<ClientDetailPage />} />
+          </Route>
+          <Route element={<RequireArea areaId="operacional:projetos" />}>
+            <Route path="/operacional/projetos" element={<ProjectsPage />} />
           </Route>
           <Route element={<RequireArea areaId="operacional:operacao" />}>
             <Route path="/operacional/operacao" element={<OperationPage />} />
