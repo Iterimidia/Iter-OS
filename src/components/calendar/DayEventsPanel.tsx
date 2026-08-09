@@ -3,15 +3,16 @@ import { CALENDAR_EVENT_META } from '@/lib/calendar'
 import { cn, formatDateLong, PRIORITY_META } from '@/lib/utils'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Trash2 } from 'lucide-react'
 
 interface DayEventsPanelProps {
   date: string | null
   events: CalendarEvent[]
   clients?: Client[]
+  onDeleteEvent?: (event: CalendarEvent) => void
 }
 
-export function DayEventsPanel({ date, events, clients = [] }: DayEventsPanelProps) {
+export function DayEventsPanel({ date, events, clients = [], onDeleteEvent }: DayEventsPanelProps) {
   if (!date) {
     return (
       <div className="card-surface p-5">
@@ -44,6 +45,15 @@ export function DayEventsPanel({ date, events, clients = [] }: DayEventsPanelPro
                 <Badge tone={PRIORITY_META[event.priority].tone} className="shrink-0">
                   {PRIORITY_META[event.priority].label}
                 </Badge>
+              )}
+              {event.source === 'manual' && onDeleteEvent && (
+                <button
+                  onClick={() => onDeleteEvent(event)}
+                  className="focus-ring shrink-0 rounded-md p-0.5 text-iter-faint hover:text-iter-danger"
+                  aria-label="Excluir evento"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               )}
             </li>
           ))}

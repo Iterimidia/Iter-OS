@@ -20,6 +20,7 @@ import { ClientsListPage } from '@/features/operational/ClientsListPage'
 import { ClientDetailPage } from '@/features/operational/ClientDetailPage'
 import { ProjectsPage } from '@/features/operational/ProjectsPage'
 import { OperationPage } from '@/features/operational/OperationPage'
+import { OperationalCalendarPage } from '@/features/operational/OperationalCalendarPage'
 import { FinancePage } from '@/features/operational/FinancePage'
 import { TeamPage } from '@/features/operational/TeamPage'
 import { FilesPage } from '@/features/operational/FilesPage'
@@ -86,6 +87,9 @@ export function App() {
           </Route>
           <Route element={<RequireArea areaId="operacional:operacao" />}>
             <Route path="/operacional/operacao" element={<OperationPage />} />
+          </Route>
+          <Route element={<RequireArea areaId="operacional:calendario" />}>
+            <Route path="/operacional/calendario" element={<OperationalCalendarPage />} />
           </Route>
           <Route element={<RequireArea areaId="operacional:financeiro" />}>
             <Route path="/operacional/financeiro" element={<FinancePage />} />

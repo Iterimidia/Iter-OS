@@ -101,7 +101,14 @@ export const ROLES: Record<RoleId, Role> = {
     label: 'Operacional',
     description: 'Executa comercial, clientes e operação. Sem financeiro nem gestão de equipe.',
     defaultBases: ['operacional'],
-    defaultAreas: ['operacional:comercial', 'operacional:clientes', 'operacional:projetos', 'operacional:operacao', 'operacional:arquivos'],
+    defaultAreas: [
+      'operacional:comercial',
+      'operacional:clientes',
+      'operacional:projetos',
+      'operacional:operacao',
+      'operacional:calendario',
+      'operacional:arquivos',
+    ],
     defaultActions: ['visualizar', 'criar', 'editar', 'alterar_status', 'atribuir', 'exportar'],
   },
   financeiro: {
