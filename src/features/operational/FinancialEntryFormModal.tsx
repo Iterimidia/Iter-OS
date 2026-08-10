@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { FinancialStatus, FinancialType } from '@/types'
+import type { FinancialEntry, FinancialStatus, FinancialType } from '@/types'
 import { useDataStore } from '@/data/store'
 import { FINANCIAL_STATUS_META } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
@@ -11,39 +11,65 @@ interface FinancialEntryFormModalProps {
   open: boolean
   onClose: () => void
   type: FinancialType
+  entry?: FinancialEntry
 }
 
 const STATUS_OPTIONS: FinancialStatus[] = ['previsto', 'pendente', 'pago', 'vencido']
 
-function emptyForm(type: FinancialType) {
-  return { type, category: '', description: '', clientId: '', amount: '', dueDate: '', status: 'previsto' as FinancialStatus, recurring: false }
+function toFormState(entry: FinancialEntry | undefined) {
+  return {
+    category: entry?.category ?? '',
+    description: entry?.description ?? '',
+    clientId: entry?.clientId ?? '',
+    amount: entry ? String(entry.amount) : '',
+    dueDate: entry?.dueDate ?? '',
+    status: entry?.status ?? ('previsto' as FinancialStatus),
+    recurring: entry?.recurring ?? false,
+  }
 }
 
-export function FinancialEntryFormModal({ open, onClose, type }: FinancialEntryFormModalProps) {
+export function FinancialEntryFormModal({ open, onClose, type, entry }: FinancialEntryFormModalProps) {
   const addFinancialEntry = useDataStore((s) => s.addFinancialEntry)
+  const updateFinancialEntry = useDataStore((s) => s.updateFinancialEntry)
   const clients = useDataStore((s) => s.clients)
-  const [form, setForm] = useState(() => emptyForm(type))
+  const [form, setForm] = useState(() => toFormState(entry))
+
+  const resolvedType = entry?.type ?? type
+
+  useEffect(() => {
+    if (open) setForm(toFormState(entry))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry, open])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.description.trim() || !form.dueDate) return
-    addFinancialEntry({
-      type,
-      category: form.category || (type === 'receita' ? 'Outros' : 'Outros'),
+    const payload = {
+      type: resolvedType,
+      category: form.category || 'Outros',
       description: form.description,
       clientId: form.clientId || undefined,
       amount: Number(form.amount) || 0,
       dueDate: form.dueDate,
       status: form.status,
       recurring: form.recurring,
-      paidDate: form.status === 'pago' ? new Date().toISOString().slice(0, 10) : undefined,
-    })
-    setForm(emptyForm(type))
+      paidDate: form.status === 'pago' ? (entry?.paidDate ?? new Date().toISOString().slice(0, 10)) : undefined,
+    }
+    if (entry) {
+      updateFinancialEntry(entry.id, payload)
+    } else {
+      addFinancialEntry(payload)
+    }
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={type === 'receita' ? 'Nova receita' : 'Nova despesa'} size="md">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={entry ? (resolvedType === 'receita' ? 'Editar receita' : 'Editar despesa') : resolvedType === 'receita' ? 'Nova receita' : 'Nova despesa'}
+      size="md"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="description">Descrição</Label>
@@ -54,7 +80,7 @@ export function FinancialEntryFormModal({ open, onClose, type }: FinancialEntryF
             <Label htmlFor="category">Categoria</Label>
             <Input id="category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
           </div>
-          {type === 'receita' && (
+          {resolvedType === 'receita' && (
             <div>
               <Label htmlFor="clientId">Cliente</Label>
               <Select id="clientId" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
@@ -99,7 +125,7 @@ export function FinancialEntryFormModal({ open, onClose, type }: FinancialEntryF
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">Salvar</Button>
+          <Button type="submit">{entry ? 'Salvar alterações' : 'Salvar'}</Button>
         </div>
       </form>
     </Modal>

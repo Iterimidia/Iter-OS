@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Banknote, PiggyBank, Plus, Receipt, Search, ShieldAlert, Trash2, TrendingUp, Wallet } from 'lucide-react'
+import { AlertTriangle, Banknote, PiggyBank, Pencil, Plus, Receipt, Search, ShieldAlert, Trash2, TrendingUp, Wallet } from 'lucide-react'
 import type { FinancialEntry, FinancialStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
@@ -30,6 +30,7 @@ export function FinancePage() {
 
   const [tab, setTab] = useState('resumo')
   const [modalType, setModalType] = useState<'receita' | 'despesa' | null>(null)
+  const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null)
   const [query, setQuery] = useState('')
   const [clientFilter, setClientFilter] = useState('all')
 
@@ -89,12 +90,22 @@ export function FinancePage() {
     }
   }
 
-  function deleteColumn(entry: FinancialEntry) {
-    if (!canDelete) return null
+  function actionsColumn(entry: FinancialEntry) {
     return (
-      <button onClick={() => handleDeleteEntry(entry)} className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger" aria-label="Excluir lançamento">
-        <Trash2 className="h-4 w-4" />
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => setEditingEntry(entry)}
+          className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
+          aria-label="Editar lançamento"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+        {canDelete && (
+          <button onClick={() => handleDeleteEntry(entry)} className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger" aria-label="Excluir lançamento">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
     )
   }
 
@@ -180,7 +191,7 @@ export function FinancePage() {
               { key: 'valor', header: 'Valor', render: (f) => formatCurrency(f.amount) },
               { key: 'vencimento', header: 'Vencimento', render: (f) => formatDate(f.dueDate) },
               { key: 'status', header: 'Status', render: statusColumn },
-              { key: 'acoes', header: '', render: deleteColumn },
+              { key: 'acoes', header: '', render: actionsColumn },
             ]}
           />
         </>
@@ -203,7 +214,7 @@ export function FinancePage() {
               { key: 'valor', header: 'Valor', render: (f) => formatCurrency(f.amount) },
               { key: 'vencimento', header: 'Vencimento', render: (f) => formatDate(f.dueDate) },
               { key: 'status', header: 'Status', render: statusColumn },
-              { key: 'acoes', header: '', render: deleteColumn },
+              { key: 'acoes', header: '', render: actionsColumn },
             ]}
           />
         </>
@@ -221,12 +232,20 @@ export function FinancePage() {
             { key: 'valor', header: 'Valor', render: (f) => formatCurrency(f.amount) },
             { key: 'vencimento', header: 'Vencimento', render: (f) => formatDate(f.dueDate) },
             { key: 'status', header: 'Status', render: statusColumn },
-            { key: 'acoes', header: '', render: deleteColumn },
+            { key: 'acoes', header: '', render: actionsColumn },
           ]}
         />
       )}
 
-      <FinancialEntryFormModal open={modalType !== null} onClose={() => setModalType(null)} type={modalType ?? 'receita'} />
+      <FinancialEntryFormModal
+        open={modalType !== null || editingEntry !== null}
+        onClose={() => {
+          setModalType(null)
+          setEditingEntry(null)
+        }}
+        type={editingEntry?.type ?? modalType ?? 'receita'}
+        entry={editingEntry ?? undefined}
+      />
     </div>
   )
 }
