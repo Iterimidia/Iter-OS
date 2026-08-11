@@ -91,7 +91,7 @@ export function DeliveriesPage() {
       {accessibleClients.length === 0 ? (
         <EmptyState title="Nenhum cliente disponível" />
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {accessibleClients.map((client) => {
             const items = deliveryPlanItems.filter((p) => p.clientId === client.id)
             return (
