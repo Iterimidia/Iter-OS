@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { AlertTriangle, Plus, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import type { Lead, LeadStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
@@ -19,18 +19,20 @@ import { EmptyState } from '@/components/ui/EmptyState'
 
 const KANBAN_COLUMNS = LEAD_STATUS_ORDER.map((id) => ({ id, label: LEAD_STATUS_META[id].label }))
 
-const emptyForm = {
-  companyName: '',
-  responsibleName: '',
-  contact: '',
-  instagramOrSite: '',
-  segment: '',
-  origin: '',
-  serviceInterest: '',
-  estimatedValue: '',
-  nextAction: '',
-  followUpDate: '',
-  notes: '',
+function toFormState(lead: Lead | undefined) {
+  return {
+    companyName: lead?.companyName ?? '',
+    responsibleName: lead?.responsibleName ?? '',
+    contact: lead?.contact ?? '',
+    instagramOrSite: lead?.instagramOrSite ?? '',
+    segment: lead?.segment ?? '',
+    origin: lead?.origin ?? '',
+    serviceInterest: lead?.serviceInterest ?? '',
+    estimatedValue: lead ? String(lead.estimatedValue) : '',
+    nextAction: lead?.nextAction ?? '',
+    followUpDate: lead?.followUpDate ?? '',
+    notes: lead?.notes ?? '',
+  }
 }
 
 export function CommercialPage() {
@@ -43,10 +45,17 @@ export function CommercialPage() {
 
   const [tab, setTab] = useState('funil')
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState(emptyForm)
+  const [editingLead, setEditingLead] = useState<Lead | null>(null)
+  const [form, setForm] = useState(() => toFormState(undefined))
   const [query, setQuery] = useState('')
 
   const canDelete = canPerformAction(user, 'excluir')
+  const modalIsOpen = modalOpen || editingLead !== null
+
+  useEffect(() => {
+    if (modalIsOpen) setForm(toFormState(editingLead ?? undefined))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingLead, modalIsOpen])
 
   function matchesQuery(l: Lead) {
     if (!query) return true
@@ -76,25 +85,33 @@ export function CommercialPage() {
     }
   }
 
+  function closeLeadModal() {
+    setModalOpen(false)
+    setEditingLead(null)
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.companyName.trim()) return
-    addLead({
+    const payload = {
       companyName: form.companyName,
       responsibleName: form.responsibleName,
       contact: form.contact,
       instagramOrSite: form.instagramOrSite || undefined,
       segment: form.segment,
       origin: form.origin,
-      status: 'lead',
       serviceInterest: form.serviceInterest,
       estimatedValue: Number(form.estimatedValue) || 0,
       nextAction: form.nextAction || undefined,
       followUpDate: form.followUpDate || undefined,
       notes: form.notes || undefined,
-    })
-    setForm(emptyForm)
-    setModalOpen(false)
+    }
+    if (editingLead) {
+      updateLead(editingLead.id, payload)
+    } else {
+      addLead({ ...payload, status: 'lead' })
+    }
+    closeLeadModal()
   }
 
   return (
@@ -135,7 +152,12 @@ export function CommercialPage() {
           getStatus={(l) => l.status}
           onStatusChange={updateStatus}
           renderCard={(lead) => (
-            <LeadCard lead={lead} onStatusChange={(status) => updateStatus(lead, status)} onDelete={canDelete ? () => handleDeleteLead(lead) : undefined} />
+            <LeadCard
+              lead={lead}
+              onStatusChange={(status) => updateStatus(lead, status)}
+              onEdit={() => setEditingLead(lead)}
+              onDelete={canDelete ? () => handleDeleteLead(lead) : undefined}
+            />
           )}
         />
       )}
@@ -165,23 +187,30 @@ export function CommercialPage() {
               ),
             },
             { key: 'proxima', header: 'Próxima ação', render: (l) => <span className="text-iter-muted">{l.nextAction ?? '—'}</span> },
-            ...(canDelete
-              ? [
-                  {
-                    key: 'acoes',
-                    header: '',
-                    render: (l: Lead) => (
-                      <button
-                        onClick={() => handleDeleteLead(l)}
-                        className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger"
-                        aria-label="Excluir lead"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ),
-                  },
-                ]
-              : []),
+            {
+              key: 'acoes',
+              header: '',
+              render: (l: Lead) => (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setEditingLead(l)}
+                    className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
+                    aria-label="Editar lead"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDeleteLead(l)}
+                      className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger"
+                      aria-label="Excluir lead"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ),
+            },
           ]}
         />
       )}
@@ -203,7 +232,13 @@ export function CommercialPage() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo lead" description="Cadastre uma nova oportunidade no funil comercial." size="lg">
+      <Modal
+        open={modalIsOpen}
+        onClose={closeLeadModal}
+        title={editingLead ? 'Editar lead' : 'Novo lead'}
+        description="Cadastre uma nova oportunidade no funil comercial."
+        size="lg"
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
@@ -265,10 +300,10 @@ export function CommercialPage() {
             <Textarea id="notes" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
+            <Button type="button" variant="secondary" onClick={closeLeadModal}>
               Cancelar
             </Button>
-            <Button type="submit">Criar lead</Button>
+            <Button type="submit">{editingLead ? 'Salvar alterações' : 'Criar lead'}</Button>
           </div>
         </form>
       </Modal>
@@ -276,13 +311,28 @@ export function CommercialPage() {
   )
 }
 
-function LeadCard({ lead, onStatusChange, onDelete }: { lead: Lead; onStatusChange: (status: LeadStatus) => void; onDelete?: () => void }) {
+function LeadCard({
+  lead,
+  onStatusChange,
+  onEdit,
+  onDelete,
+}: {
+  lead: Lead
+  onStatusChange: (status: LeadStatus) => void
+  onEdit?: () => void
+  onDelete?: () => void
+}) {
   return (
     <div className="card-surface space-y-2 p-3">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-semibold leading-snug text-iter-text">{lead.companyName}</p>
         <div className="flex shrink-0 items-center gap-1.5">
           {lead.estimatedValue > 0 && <span className="text-[11px] font-medium text-iter-success">{formatCurrency(lead.estimatedValue)}</span>}
+          {onEdit && (
+            <button onClick={onEdit} className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text" aria-label="Editar lead">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
           {onDelete && (
             <button onClick={onDelete} className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-danger" aria-label="Excluir lead">
               <Trash2 className="h-3.5 w-3.5" />

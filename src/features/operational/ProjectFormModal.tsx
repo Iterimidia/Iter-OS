@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { Priority, ProjectStatus } from '@/types'
+import type { Priority, Project, ProjectStatus } from '@/types'
 import { useDataStore } from '@/data/store'
 import { PRIORITY_META, PROJECT_STATUS_META } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
@@ -11,28 +11,37 @@ import { ToggleChip } from '@/components/ui/ToggleChip'
 interface ProjectFormModalProps {
   open: boolean
   onClose: () => void
+  project?: Project
 }
 
 const STATUS_OPTIONS: ProjectStatus[] = ['planejamento', 'em_andamento', 'pausado', 'concluido']
 const PRIORITIES: Priority[] = ['baixa', 'media', 'alta', 'urgente']
 
-const emptyForm = {
-  title: '',
-  clientId: '',
-  description: '',
-  responsibleId: '',
-  teamIds: [] as string[],
-  status: 'planejamento' as ProjectStatus,
-  startDate: '',
-  endDate: '',
-  priority: 'media' as Priority,
+function toFormState(project: Project | undefined) {
+  return {
+    title: project?.title ?? '',
+    clientId: project?.clientId ?? '',
+    description: project?.description ?? '',
+    responsibleId: project?.responsibleId ?? '',
+    teamIds: project?.teamIds ?? ([] as string[]),
+    status: project?.status ?? ('planejamento' as ProjectStatus),
+    startDate: project?.startDate ?? '',
+    endDate: project?.endDate ?? '',
+    priority: project?.priority ?? ('media' as Priority),
+  }
 }
 
-export function ProjectFormModal({ open, onClose }: ProjectFormModalProps) {
+export function ProjectFormModal({ open, onClose, project }: ProjectFormModalProps) {
   const addProject = useDataStore((s) => s.addProject)
+  const updateProject = useDataStore((s) => s.updateProject)
   const clients = useDataStore((s) => s.clients)
   const users = useDataStore((s) => s.users)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(() => toFormState(project))
+
+  useEffect(() => {
+    if (open) setForm(toFormState(project))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, open])
 
   function toggleTeamMember(userId: string) {
     setForm((f) => ({
@@ -44,13 +53,22 @@ export function ProjectFormModal({ open, onClose }: ProjectFormModalProps) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.title.trim() || !form.clientId || !form.responsibleId || !form.startDate || !form.endDate) return
-    addProject(form)
-    setForm(emptyForm)
+    if (project) {
+      updateProject(project.id, form)
+    } else {
+      addProject(form)
+    }
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Novo projeto" description="Vincule a um cliente — as tarefas dele poderão apontar pra este projeto." size="lg">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={project ? 'Editar projeto' : 'Novo projeto'}
+      description="Vincule a um cliente — as tarefas dele poderão apontar pra este projeto."
+      size="lg"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="title">Título</Label>
@@ -126,7 +144,7 @@ export function ProjectFormModal({ open, onClose }: ProjectFormModalProps) {
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">Criar projeto</Button>
+          <Button type="submit">{project ? 'Salvar alterações' : 'Criar projeto'}</Button>
         </div>
       </form>
     </Modal>

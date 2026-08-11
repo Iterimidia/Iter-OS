@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { MouseEvent } from 'react'
-import { ExternalLink, Plus, Search, Trash2 } from 'lucide-react'
+import { ExternalLink, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import type { FileResource } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction, canViewFile } from '@/lib/permissions'
@@ -25,6 +26,7 @@ export function FilesBrowser({ title, description }: FilesBrowserProps) {
 
   const [query, setQuery] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingFile, setEditingFile] = useState<FileResource | null>(null)
 
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name
   const canDelete = canPerformAction(user, 'excluir')
@@ -38,6 +40,12 @@ export function FilesBrowser({ title, description }: FilesBrowserProps) {
     if (window.confirm(`Excluir o arquivo "${file.name}"?`)) {
       removeFile(file.id)
     }
+  }
+
+  function handleEdit(e: MouseEvent, file: FileResource) {
+    e.preventDefault()
+    e.stopPropagation()
+    setEditingFile(file)
   }
 
   return (
@@ -84,6 +92,13 @@ export function FilesBrowser({ title, description }: FilesBrowserProps) {
                       {file.description && <p className="mt-1.5 line-clamp-2 text-xs text-iter-muted">{file.description}</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        onClick={(e) => handleEdit(e, file)}
+                        className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
+                        aria-label="Editar arquivo"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
                       {canDelete && (
                         <button
                           onClick={(e) => handleDelete(e, file)}
@@ -104,6 +119,7 @@ export function FilesBrowser({ title, description }: FilesBrowserProps) {
       )}
 
       <FileFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <FileFormModal open={editingFile !== null} onClose={() => setEditingFile(null)} file={editingFile ?? undefined} />
     </div>
   )
 }

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import type { CalendarEvent } from '@/types'
 import { useDataStore } from '@/data/store'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Label, Select } from '@/components/ui/Input'
@@ -9,45 +10,59 @@ interface MeetingFormModalProps {
   open: boolean
   onClose: () => void
   defaultDate?: string | null
+  event?: CalendarEvent
 }
 
-export function MeetingFormModal({ open, onClose, defaultDate }: MeetingFormModalProps) {
+function toFormState(event: CalendarEvent | undefined, defaultDate?: string | null) {
+  return {
+    title: event?.title ?? '',
+    date: event?.date ?? defaultDate ?? new Date().toISOString().slice(0, 10),
+    clientId: event?.clientId ?? '',
+  }
+}
+
+export function MeetingFormModal({ open, onClose, defaultDate, event }: MeetingFormModalProps) {
   const addCalendarEvent = useDataStore((s) => s.addCalendarEvent)
+  const updateCalendarEvent = useDataStore((s) => s.updateCalendarEvent)
   const clients = useDataStore((s) => s.clients)
 
-  const [title, setTitle] = useState('')
-  const [date, setDate] = useState(defaultDate ?? new Date().toISOString().slice(0, 10))
-  const [clientId, setClientId] = useState('')
+  const [form, setForm] = useState(() => toFormState(event, defaultDate))
+
+  useEffect(() => {
+    if (open) setForm(toFormState(event, defaultDate))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event, open])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!title.trim() || !date) return
-    addCalendarEvent({
-      title,
-      date,
-      type: 'reuniao',
-      scope: 'operacional',
-      clientId: clientId || undefined,
-    })
-    setTitle('')
-    setClientId('')
+    if (!form.title.trim() || !form.date) return
+    const payload = {
+      title: form.title,
+      date: form.date,
+      clientId: form.clientId || undefined,
+    }
+    if (event) {
+      updateCalendarEvent(event.id, payload)
+    } else {
+      addCalendarEvent({ ...payload, type: 'reuniao', scope: 'operacional' })
+    }
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Nova reunião" description="Aparece no calendário operacional (e no geral).">
+    <Modal open={open} onClose={onClose} title={event ? 'Editar reunião' : 'Nova reunião'} description="Aparece no calendário operacional (e no geral).">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="meetingTitle">Título</Label>
-          <Input id="meetingTitle" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Reunião com..." />
+          <Input id="meetingTitle" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Reunião com..." />
         </div>
         <div>
           <Label htmlFor="meetingDate">Data</Label>
-          <Input id="meetingDate" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input id="meetingDate" type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
         </div>
         <div>
           <Label htmlFor="meetingClient">Cliente (opcional)</Label>
-          <Select id="meetingClient" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+          <Select id="meetingClient" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
             <option value="">Nenhum</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
@@ -60,7 +75,7 @@ export function MeetingFormModal({ open, onClose, defaultDate }: MeetingFormModa
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">Criar reunião</Button>
+          <Button type="submit">{event ? 'Salvar alterações' : 'Criar reunião'}</Button>
         </div>
       </form>
     </Modal>

@@ -23,6 +23,7 @@ export function OperationalCalendarPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(todayIso)
   const [hidden, setHidden] = useState<Set<CalendarEventType>>(new Set())
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
 
   const canDelete = canPerformAction(user, 'excluir')
 
@@ -57,10 +58,17 @@ export function OperationalCalendarPage() {
       <CalendarTypeFilter types={presentTypes} hidden={hidden} onToggle={toggleType} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         <MonthCalendar events={events} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-        <DayEventsPanel date={selectedDate} events={events} clients={clients} onDeleteEvent={canDelete ? handleDeleteEvent : undefined} />
+        <DayEventsPanel
+          date={selectedDate}
+          events={events}
+          clients={clients}
+          onEditEvent={setEditingEvent}
+          onDeleteEvent={canDelete ? handleDeleteEvent : undefined}
+        />
       </div>
 
       <MeetingFormModal open={modalOpen} onClose={() => setModalOpen(false)} defaultDate={selectedDate} />
+      <MeetingFormModal open={editingEvent !== null} onClose={() => setEditingEvent(null)} event={editingEvent ?? undefined} />
     </div>
   )
 }

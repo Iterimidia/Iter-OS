@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { BaseId, Priority, TaskStatus } from '@/types'
+import type { BaseId, Priority, Task, TaskStatus } from '@/types'
 import { useDataStore } from '@/data/store'
 import { PRIORITY_META, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
@@ -11,39 +11,46 @@ interface TaskFormModalProps {
   open: boolean
   onClose: () => void
   defaultArea?: BaseId
+  task?: Task
 }
 
 const PRIORITIES: Priority[] = ['baixa', 'media', 'alta', 'urgente']
 
-function emptyForm(defaultArea: BaseId) {
+function toFormState(task: Task | undefined, defaultArea: BaseId) {
   return {
-    title: '',
-    description: '',
-    clientId: '',
-    projectId: '',
-    responsibleId: '',
-    dueDate: '',
-    priority: 'media' as Priority,
-    status: 'a_fazer' as TaskStatus,
-    type: '',
-    area: defaultArea,
+    title: task?.title ?? '',
+    description: task?.description ?? '',
+    clientId: task?.clientId ?? '',
+    projectId: task?.projectId ?? '',
+    responsibleId: task?.responsibleId ?? '',
+    dueDate: task?.dueDate ?? '',
+    priority: task?.priority ?? ('media' as Priority),
+    status: task?.status ?? ('a_fazer' as TaskStatus),
+    type: task?.type ?? '',
+    area: task?.area ?? defaultArea,
   }
 }
 
-export function TaskFormModal({ open, onClose, defaultArea = 'operacional' }: TaskFormModalProps) {
+export function TaskFormModal({ open, onClose, defaultArea = 'operacional', task }: TaskFormModalProps) {
   const addTask = useDataStore((s) => s.addTask)
+  const updateTask = useDataStore((s) => s.updateTask)
   const clients = useDataStore((s) => s.clients)
   const projects = useDataStore((s) => s.projects)
   const users = useDataStore((s) => s.users)
   const appSettings = useDataStore((s) => s.appSettings)
 
-  const [form, setForm] = useState(() => emptyForm(defaultArea))
+  const [form, setForm] = useState(() => toFormState(task, defaultArea))
   const availableProjects = projects.filter((p) => !form.clientId || p.clientId === form.clientId)
+
+  useEffect(() => {
+    if (open) setForm(toFormState(task, defaultArea))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task, open])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.title.trim() || !form.responsibleId) return
-    addTask({
+    const payload = {
       title: form.title,
       description: form.description || undefined,
       clientId: form.clientId || undefined,
@@ -54,13 +61,23 @@ export function TaskFormModal({ open, onClose, defaultArea = 'operacional' }: Ta
       status: form.status,
       type: form.type || 'Geral',
       area: form.area,
-    })
-    setForm(emptyForm(defaultArea))
+    }
+    if (task) {
+      updateTask(task.id, payload)
+    } else {
+      addTask(payload)
+    }
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Nova tarefa" description="Vincule a um cliente e/ou projeto — o prazo aparece automaticamente no calendário." size="lg">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={task ? 'Editar tarefa' : 'Nova tarefa'}
+      description="Vincule a um cliente e/ou projeto — o prazo aparece automaticamente no calendário."
+      size="lg"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="title">Título</Label>
@@ -127,14 +144,18 @@ export function TaskFormModal({ open, onClose, defaultArea = 'operacional' }: Ta
           </div>
           <div>
             <Label htmlFor="type">Tipo</Label>
-            <Select id="type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-              <option value="">Selecione</option>
+            <Input
+              id="type"
+              list="task-type-options"
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value })}
+              placeholder="Escolha ou escreva um tipo..."
+            />
+            <datalist id="task-type-options">
               {appSettings.taskTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
+                <option key={t} value={t} />
               ))}
-            </Select>
+            </datalist>
           </div>
           <div>
             <Label htmlFor="status">Status inicial</Label>
@@ -151,7 +172,7 @@ export function TaskFormModal({ open, onClose, defaultArea = 'operacional' }: Ta
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">Criar tarefa</Button>
+          <Button type="submit">{task ? 'Salvar alterações' : 'Criar tarefa'}</Button>
         </div>
       </form>
     </Modal>

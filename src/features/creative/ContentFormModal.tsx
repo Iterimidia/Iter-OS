@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { ContentFormat } from '@/types'
+import type { ContentFormat, ContentItem } from '@/types'
 import { useDataStore } from '@/data/store'
 import { CONTENT_FORMAT_LABELS, CONTENT_FORMAT_ORDER } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
@@ -10,56 +10,66 @@ import { Button } from '@/components/ui/Button'
 interface ContentFormModalProps {
   open: boolean
   onClose: () => void
+  item?: ContentItem
 }
 
-const emptyForm = {
-  clientId: '',
-  projectId: '',
-  format: 'post_estatico' as ContentFormat,
-  theme: '',
-  title: '',
-  responsibleId: '',
-  dueDate: '',
-  publishDate: '',
-  caption: '',
-  script: '',
-  fileUrl: '',
+function toFormState(item: ContentItem | undefined) {
+  return {
+    clientId: item?.clientId ?? '',
+    projectId: item?.projectId ?? '',
+    format: item?.format ?? ('post_estatico' as ContentFormat),
+    theme: item?.theme ?? '',
+    title: item?.title ?? '',
+    responsibleId: item?.responsibleId ?? '',
+    dueDate: item?.dueDate ?? '',
+    publishDate: item?.publishDate ?? '',
+    caption: item?.caption ?? '',
+    script: item?.script ?? '',
+    fileUrl: item?.fileUrl ?? '',
+  }
 }
 
-export function ContentFormModal({ open, onClose }: ContentFormModalProps) {
+export function ContentFormModal({ open, onClose, item }: ContentFormModalProps) {
   const addContentItem = useDataStore((s) => s.addContentItem)
+  const updateContentItem = useDataStore((s) => s.updateContentItem)
   const clients = useDataStore((s) => s.clients)
   const projects = useDataStore((s) => s.projects)
   const users = useDataStore((s) => s.users)
 
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(() => toFormState(item))
   const availableProjects = projects.filter((p) => !form.clientId || p.clientId === form.clientId)
+
+  useEffect(() => {
+    if (open) setForm(toFormState(item))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, open])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.title.trim() || !form.clientId || !form.responsibleId) return
-    addContentItem({
+    const payload = {
       clientId: form.clientId,
       projectId: form.projectId || undefined,
       format: form.format,
       theme: form.theme,
       title: form.title,
       responsibleId: form.responsibleId,
-      status: 'a_fazer',
       dueDate: form.dueDate || undefined,
       publishDate: form.publishDate || undefined,
       caption: form.caption || undefined,
       script: form.script || undefined,
       fileUrl: form.fileUrl || undefined,
-      internalApproval: false,
-      clientApproval: false,
-    })
-    setForm(emptyForm)
+    }
+    if (item) {
+      updateContentItem(item.id, payload)
+    } else {
+      addContentItem({ ...payload, status: 'a_fazer', internalApproval: false, clientApproval: false })
+    }
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Nova peça de conteúdo" size="lg">
+    <Modal open={open} onClose={onClose} title={item ? 'Editar peça de conteúdo' : 'Nova peça de conteúdo'} size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="title">Título</Label>
@@ -138,7 +148,7 @@ export function ContentFormModal({ open, onClose }: ContentFormModalProps) {
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">Criar peça</Button>
+          <Button type="submit">{item ? 'Salvar alterações' : 'Criar peça'}</Button>
         </div>
       </form>
     </Modal>

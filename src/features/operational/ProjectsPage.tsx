@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import type { Project } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
@@ -20,6 +20,7 @@ export function ProjectsPage() {
 
   const [query, setQuery] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
 
   const canDelete = canPerformAction(user, 'excluir')
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name
@@ -63,6 +64,13 @@ export function ProjectsPage() {
                 <p className="text-sm font-medium text-iter-text">{p.title}</p>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Badge tone={PROJECT_STATUS_META[p.status].tone}>{PROJECT_STATUS_META[p.status].label}</Badge>
+                  <button
+                    onClick={() => setEditingProject(p)}
+                    className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
+                    aria-label="Editar projeto"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
                   {canDelete && (
                     <button
                       onClick={() => handleDeleteProject(p)}
@@ -86,6 +94,7 @@ export function ProjectsPage() {
       )}
 
       <ProjectFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <ProjectFormModal open={editingProject !== null} onClose={() => setEditingProject(null)} project={editingProject ?? undefined} />
     </div>
   )
 }

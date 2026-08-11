@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { RoleId } from '@/types'
+import type { FileResource, RoleId } from '@/types'
 import { useDataStore } from '@/data/store'
 import { ROLE_LIST } from '@/lib/permissions'
 import { ROLE_LABELS } from '@/lib/utils'
@@ -12,25 +12,34 @@ import { ToggleChip } from '@/components/ui/ToggleChip'
 interface FileFormModalProps {
   open: boolean
   onClose: () => void
+  file?: FileResource
 }
 
 const CATEGORIES = ['Briefings', 'Logos', 'Brandbooks', 'Fotos', 'Vídeos', 'Contratos', 'Propostas', 'Referências', 'Pastas por Cliente', 'Aprovados']
 const DEFAULT_ROLES: RoleId[] = ['admin', 'direcao', 'gestao_criativa', 'criativo', 'operacional']
 
-const emptyForm = {
-  name: '',
-  type: '',
-  category: CATEGORIES[0],
-  clientId: '',
-  url: '',
-  description: '',
-  visibleToRoles: DEFAULT_ROLES,
+function toFormState(file: FileResource | undefined) {
+  return {
+    name: file?.name ?? '',
+    type: file?.type ?? '',
+    category: file?.category ?? CATEGORIES[0],
+    clientId: file?.clientId ?? '',
+    url: file?.url ?? '',
+    description: file?.description ?? '',
+    visibleToRoles: file?.visibleToRoles ?? DEFAULT_ROLES,
+  }
 }
 
-export function FileFormModal({ open, onClose }: FileFormModalProps) {
+export function FileFormModal({ open, onClose, file }: FileFormModalProps) {
   const addFile = useDataStore((s) => s.addFile)
+  const updateFile = useDataStore((s) => s.updateFile)
   const clients = useDataStore((s) => s.clients)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(() => toFormState(file))
+
+  useEffect(() => {
+    if (open) setForm(toFormState(file))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, open])
 
   function toggleRole(role: RoleId) {
     setForm((f) => ({
@@ -42,7 +51,7 @@ export function FileFormModal({ open, onClose }: FileFormModalProps) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.name.trim() || !form.url.trim()) return
-    addFile({
+    const payload = {
       name: form.name,
       type: form.type || form.category,
       category: form.category,
@@ -50,13 +59,23 @@ export function FileFormModal({ open, onClose }: FileFormModalProps) {
       url: form.url,
       description: form.description || undefined,
       visibleToRoles: form.visibleToRoles,
-    })
-    setForm(emptyForm)
+    }
+    if (file) {
+      updateFile(file.id, payload)
+    } else {
+      addFile(payload)
+    }
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Novo arquivo" description="O Iter OS organiza links — os arquivos continuam no Drive." size="lg">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={file ? 'Editar arquivo' : 'Novo arquivo'}
+      description="O Iter OS organiza links — os arquivos continuam no Drive."
+      size="lg"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -111,7 +130,7 @@ export function FileFormModal({ open, onClose }: FileFormModalProps) {
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">Adicionar arquivo</Button>
+          <Button type="submit">{file ? 'Salvar alterações' : 'Adicionar arquivo'}</Button>
         </div>
       </form>
     </Modal>

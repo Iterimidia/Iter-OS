@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, Plus, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import type { Priority, Task, TaskStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
@@ -30,6 +30,7 @@ export function OperationPage() {
 
   const [tab, setTab] = useState('kanban')
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [query, setQuery] = useState('')
   const [responsibleFilter, setResponsibleFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all')
@@ -124,15 +125,24 @@ export function OperationPage() {
             <div className="card-surface space-y-2 p-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-xs font-semibold leading-snug text-iter-text">{task.title}</p>
-                {canDelete && (
+                <div className="flex shrink-0 items-center gap-1">
                   <button
-                    onClick={() => handleDeleteTask(task)}
-                    className="focus-ring shrink-0 rounded-md p-0.5 text-iter-faint hover:text-iter-danger"
-                    aria-label="Excluir tarefa"
+                    onClick={() => setEditingTask(task)}
+                    className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
+                    aria-label="Editar tarefa"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </button>
-                )}
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDeleteTask(task)}
+                      className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-danger"
+                      aria-label="Excluir tarefa"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {clientName(task.clientId) && <Badge tone="neutral">{clientName(task.clientId)}</Badge>}
@@ -176,23 +186,30 @@ export function OperationPage() {
               header: 'Status',
               render: (t) => <StatusSelect value={t.status} onChange={(status) => changeStatus(t, status)} options={STATUS_OPTIONS} />,
             },
-            ...(canDelete
-              ? [
-                  {
-                    key: 'acoes',
-                    header: '',
-                    render: (t: Task) => (
-                      <button
-                        onClick={() => handleDeleteTask(t)}
-                        className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger"
-                        aria-label="Excluir tarefa"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ),
-                  },
-                ]
-              : []),
+            {
+              key: 'acoes',
+              header: '',
+              render: (t: Task) => (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setEditingTask(t)}
+                    className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
+                    aria-label="Editar tarefa"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDeleteTask(t)}
+                      className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger"
+                      aria-label="Excluir tarefa"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ),
+            },
           ]}
         />
       )}
@@ -217,6 +234,7 @@ export function OperationPage() {
         ))}
 
       <TaskFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <TaskFormModal open={editingTask !== null} onClose={() => setEditingTask(null)} task={editingTask ?? undefined} />
     </div>
   )
 }

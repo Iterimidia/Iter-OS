@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Trash2 } from 'lucide-react'
+import { CheckCircle2, Circle, Pencil, Trash2 } from 'lucide-react'
 import type { ContentItem, DemandStatus } from '@/types'
 import { CONTENT_FORMAT_LABELS, DEMAND_STATUS_META, DEMAND_STATUS_ORDER, cn, formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/Badge'
@@ -12,6 +12,7 @@ interface ContentCardProps {
   onStatusChange: (status: DemandStatus) => void
   onToggleInternalApproval: () => void
   onToggleClientApproval: () => void
+  onEdit?: () => void
   onDelete?: () => void
 }
 
@@ -23,6 +24,7 @@ export function ContentCard({
   onStatusChange,
   onToggleInternalApproval,
   onToggleClientApproval,
+  onEdit,
   onDelete,
 }: ContentCardProps) {
   return (
@@ -34,6 +36,11 @@ export function ContentCard({
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <Badge tone="neutral">{CONTENT_FORMAT_LABELS[item.format]}</Badge>
+          {onEdit && (
+            <button onClick={onEdit} className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text" aria-label="Editar peça">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
           {onDelete && (
             <button onClick={onDelete} className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-danger" aria-label="Excluir peça">
               <Trash2 className="h-3.5 w-3.5" />

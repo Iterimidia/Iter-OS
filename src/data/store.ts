@@ -99,6 +99,7 @@ interface DataState {
   removeTask: (id: string) => void
 
   addCalendarEvent: (data: Omit<CalendarEvent, 'id' | 'source'>) => CalendarEvent
+  updateCalendarEvent: (id: string, patch: Partial<CalendarEvent>) => void
   removeCalendarEvent: (id: string) => void
 
   addFinancialEntry: (data: Omit<FinancialEntry, 'id'>) => FinancialEntry
@@ -114,6 +115,7 @@ interface DataState {
   removeContentItem: (id: string) => void
 
   addFile: (data: Omit<FileResource, 'id' | 'createdAt'>) => FileResource
+  updateFile: (id: string, patch: Partial<FileResource>) => void
   removeFile: (id: string) => void
 
   updateDashboardCard: (id: string, patch: Partial<DashboardCardDefinition>) => void
@@ -389,6 +391,14 @@ export const useDataStore = create<DataState>()((set, get) => ({
       })
     return event
   },
+  updateCalendarEvent: (id, patch) => {
+    set((s) => ({ calendarEvents: s.calendarEvents.map((e) => (e.id === id ? { ...e, ...patch } : e)) }))
+    supabase
+      .from('calendar_events')
+      .update(entityToRow(patch))
+      .eq('id', id)
+      .then(({ error }) => reportError('atualizar evento', 'calendar_events', error))
+  },
   removeCalendarEvent: (id) => {
     const previous = get().calendarEvents
     set((s) => ({ calendarEvents: s.calendarEvents.filter((e) => e.id !== id) }))
@@ -504,6 +514,14 @@ export const useDataStore = create<DataState>()((set, get) => ({
         if (reportError('criar arquivo', 'files', error)) set((s) => ({ files: s.files.filter((f) => f.id !== file.id) }))
       })
     return file
+  },
+  updateFile: (id, patch) => {
+    set((s) => ({ files: s.files.map((f) => (f.id === id ? { ...f, ...patch } : f)) }))
+    supabase
+      .from('files')
+      .update(entityToRow(patch))
+      .eq('id', id)
+      .then(({ error }) => reportError('atualizar arquivo', 'files', error))
   },
   removeFile: (id) => {
     const previous = get().files

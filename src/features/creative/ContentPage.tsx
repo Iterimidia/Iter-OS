@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Plus, Search } from 'lucide-react'
-import type { ContentFormat } from '@/types'
+import type { ContentFormat, ContentItem } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction, getAccessibleClients } from '@/lib/permissions'
@@ -24,6 +24,7 @@ export function ContentPage() {
   const [format, setFormat] = useState<'all' | ContentFormat>('all')
   const [query, setQuery] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<ContentItem | null>(null)
 
   const accessibleIds = new Set(getAccessibleClients(user, clients).map((c) => c.id))
   const visible = contentItems.filter((c) => accessibleIds.has(c.clientId))
@@ -84,6 +85,7 @@ export function ContentPage() {
               onStatusChange={(status) => updateContentItem(item.id, { status })}
               onToggleInternalApproval={() => updateContentItem(item.id, { internalApproval: !item.internalApproval })}
               onToggleClientApproval={() => updateContentItem(item.id, { clientApproval: !item.clientApproval })}
+              onEdit={() => setEditingItem(item)}
               onDelete={canDelete ? () => handleDelete(item) : undefined}
             />
           ))}
@@ -91,6 +93,7 @@ export function ContentPage() {
       )}
 
       <ContentFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <ContentFormModal open={editingItem !== null} onClose={() => setEditingItem(null)} item={editingItem ?? undefined} />
     </div>
   )
 }
