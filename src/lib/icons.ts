@@ -17,6 +17,7 @@ import {
   Building2,
   Sparkles,
   Layers,
+  PackageCheck,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -40,6 +41,7 @@ export const ICONS: Record<string, LucideIcon> = {
   Building2,
   Sparkles,
   Layers,
+  PackageCheck,
 }
 
 export function getIcon(name: string): LucideIcon {

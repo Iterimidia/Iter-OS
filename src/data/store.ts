@@ -19,6 +19,8 @@ import type {
   Client,
   ContentItem,
   DashboardCardDefinition,
+  DeliveryPlanItem,
+  DeliveryUnit,
   FileResource,
   FinancialEntry,
   Lead,
@@ -77,6 +79,8 @@ interface DataState {
   leads: Lead[]
   contentItems: ContentItem[]
   files: FileResource[]
+  deliveryPlanItems: DeliveryPlanItem[]
+  deliveryUnits: DeliveryUnit[]
   dashboardCards: DashboardCardDefinition[]
   appSettings: AppSettings
 
@@ -117,6 +121,14 @@ interface DataState {
   addFile: (data: Omit<FileResource, 'id' | 'createdAt'>) => FileResource
   updateFile: (id: string, patch: Partial<FileResource>) => void
   removeFile: (id: string) => void
+
+  addDeliveryPlanItem: (data: Omit<DeliveryPlanItem, 'id' | 'createdAt'>) => DeliveryPlanItem
+  updateDeliveryPlanItem: (id: string, patch: Partial<DeliveryPlanItem>) => void
+  removeDeliveryPlanItem: (id: string) => void
+
+  addDeliveryUnit: (data: Omit<DeliveryUnit, 'id' | 'createdAt'>) => DeliveryUnit
+  updateDeliveryUnit: (id: string, patch: Partial<DeliveryUnit>) => void
+  removeDeliveryUnit: (id: string) => void
 
   updateDashboardCard: (id: string, patch: Partial<DashboardCardDefinition>) => void
 
@@ -178,24 +190,41 @@ export const useDataStore = create<DataState>()((set, get) => ({
   leads: [],
   contentItems: [],
   files: [],
+  deliveryPlanItems: [],
+  deliveryUnits: [],
   dashboardCards: [],
   appSettings: FALLBACK_APP_SETTINGS,
 
   initialize: async () => {
-    const [users, clients, projects, tasks, calendarEvents, financialEntries, leads, contentItems, files, dashboardCards, appSettingsRows] =
-      await Promise.all([
-        fetchTable<User>('users'),
-        fetchTable<Client>('clients'),
-        fetchTable<Project>('projects'),
-        fetchTable<Task>('tasks'),
-        fetchTable<CalendarEvent>('calendar_events'),
-        fetchTable<FinancialEntry>('financial_entries'),
-        fetchTable<Lead>('leads'),
-        fetchTable<ContentItem>('content_items'),
-        fetchTable<FileResource>('files'),
-        fetchTable<DashboardCardDefinition>('dashboard_cards'),
-        fetchTable<AppSettings>('app_settings'),
-      ])
+    const [
+      users,
+      clients,
+      projects,
+      tasks,
+      calendarEvents,
+      financialEntries,
+      leads,
+      contentItems,
+      files,
+      deliveryPlanItems,
+      deliveryUnits,
+      dashboardCards,
+      appSettingsRows,
+    ] = await Promise.all([
+      fetchTable<User>('users'),
+      fetchTable<Client>('clients'),
+      fetchTable<Project>('projects'),
+      fetchTable<Task>('tasks'),
+      fetchTable<CalendarEvent>('calendar_events'),
+      fetchTable<FinancialEntry>('financial_entries'),
+      fetchTable<Lead>('leads'),
+      fetchTable<ContentItem>('content_items'),
+      fetchTable<FileResource>('files'),
+      fetchTable<DeliveryPlanItem>('delivery_plan_items'),
+      fetchTable<DeliveryUnit>('delivery_units'),
+      fetchTable<DashboardCardDefinition>('dashboard_cards'),
+      fetchTable<AppSettings>('app_settings'),
+    ])
 
     set({
       users,
@@ -207,6 +236,8 @@ export const useDataStore = create<DataState>()((set, get) => ({
       leads,
       contentItems,
       files,
+      deliveryPlanItems,
+      deliveryUnits,
       dashboardCards,
       appSettings: appSettingsRows[0] ?? FALLBACK_APP_SETTINGS,
       initialized: true,
@@ -224,6 +255,8 @@ export const useDataStore = create<DataState>()((set, get) => ({
     subscribeListTable<Lead>('leads', 'leads', set)
     subscribeListTable<ContentItem>('content_items', 'contentItems', set)
     subscribeListTable<FileResource>('files', 'files', set)
+    subscribeListTable<DeliveryPlanItem>('delivery_plan_items', 'deliveryPlanItems', set)
+    subscribeListTable<DeliveryUnit>('delivery_units', 'deliveryUnits', set)
     subscribeListTable<DashboardCardDefinition>('dashboard_cards', 'dashboardCards', set)
 
     supabase
@@ -532,6 +565,73 @@ export const useDataStore = create<DataState>()((set, get) => ({
       .eq('id', id)
       .then(({ error }) => {
         if (reportError('excluir arquivo', 'files', error)) set({ files: previous })
+      })
+  },
+
+  addDeliveryPlanItem: (data) => {
+    const item: DeliveryPlanItem = { ...data, id: generateId('dplan'), createdAt: todayIso() }
+    set((s) => ({ deliveryPlanItems: [...s.deliveryPlanItems, item] }))
+    supabase
+      .from('delivery_plan_items')
+      .insert(entityToRow(item))
+      .then(({ error }) => {
+        if (reportError('criar item contratado', 'delivery_plan_items', error))
+          set((s) => ({ deliveryPlanItems: s.deliveryPlanItems.filter((p) => p.id !== item.id) }))
+      })
+    return item
+  },
+  updateDeliveryPlanItem: (id, patch) => {
+    set((s) => ({ deliveryPlanItems: s.deliveryPlanItems.map((p) => (p.id === id ? { ...p, ...patch } : p)) }))
+    supabase
+      .from('delivery_plan_items')
+      .update(entityToRow(patch))
+      .eq('id', id)
+      .then(({ error }) => reportError('atualizar item contratado', 'delivery_plan_items', error))
+  },
+  removeDeliveryPlanItem: (id) => {
+    const previousItems = get().deliveryPlanItems
+    const previousUnits = get().deliveryUnits
+    set((s) => ({
+      deliveryPlanItems: s.deliveryPlanItems.filter((p) => p.id !== id),
+      deliveryUnits: s.deliveryUnits.filter((u) => u.planItemId !== id),
+    }))
+    supabase
+      .from('delivery_plan_items')
+      .delete()
+      .eq('id', id)
+      .then(({ error }) => {
+        if (reportError('excluir item contratado', 'delivery_plan_items', error)) set({ deliveryPlanItems: previousItems, deliveryUnits: previousUnits })
+      })
+  },
+
+  addDeliveryUnit: (data) => {
+    const unit: DeliveryUnit = { ...data, id: generateId('dunit'), createdAt: todayIso() }
+    set((s) => ({ deliveryUnits: [...s.deliveryUnits, unit] }))
+    supabase
+      .from('delivery_units')
+      .insert(entityToRow(unit))
+      .then(({ error }) => {
+        if (reportError('criar entrega', 'delivery_units', error)) set((s) => ({ deliveryUnits: s.deliveryUnits.filter((u) => u.id !== unit.id) }))
+      })
+    return unit
+  },
+  updateDeliveryUnit: (id, patch) => {
+    set((s) => ({ deliveryUnits: s.deliveryUnits.map((u) => (u.id === id ? { ...u, ...patch } : u)) }))
+    supabase
+      .from('delivery_units')
+      .update(entityToRow(patch))
+      .eq('id', id)
+      .then(({ error }) => reportError('atualizar entrega', 'delivery_units', error))
+  },
+  removeDeliveryUnit: (id) => {
+    const previous = get().deliveryUnits
+    set((s) => ({ deliveryUnits: s.deliveryUnits.filter((u) => u.id !== id) }))
+    supabase
+      .from('delivery_units')
+      .delete()
+      .eq('id', id)
+      .then(({ error }) => {
+        if (reportError('excluir entrega', 'delivery_units', error)) set({ deliveryUnits: previous })
       })
   },
 

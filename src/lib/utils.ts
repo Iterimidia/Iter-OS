@@ -7,6 +7,7 @@ import type {
   Client,
   ClientStatus,
   ContentFormat,
+  DeliveryUnitStatus,
   DemandStatus,
   FinancialStatus,
   IntegrationStatusKind,
@@ -250,6 +251,36 @@ export const CONTENT_FORMAT_ORDER: ContentFormat[] = [
   'legenda',
   'roteiro',
 ]
+
+export const DELIVERY_UNIT_STATUS_META: Record<DeliveryUnitStatus, StatusMeta> = {
+  pendente: { label: 'Pendente', tone: 'neutral' },
+  em_producao: { label: 'Em produção', tone: 'info' },
+  entregue: { label: 'Entregue', tone: 'success' },
+}
+
+export const DELIVERY_UNIT_STATUS_ORDER: DeliveryUnitStatus[] = ['pendente', 'em_producao', 'entregue']
+
+/** Próximo status ao clicar num chip de entrega — cicla pendente -> em_producao -> entregue -> pendente. */
+export function nextDeliveryUnitStatus(status: DeliveryUnitStatus): DeliveryUnitStatus {
+  const idx = DELIVERY_UNIT_STATUS_ORDER.indexOf(status)
+  return DELIVERY_UNIT_STATUS_ORDER[(idx + 1) % DELIVERY_UNIT_STATUS_ORDER.length]
+}
+
+/** Mês de referência atual no formato 'YYYY-MM'. */
+export function currentMonthKey(): string {
+  return new Date().toISOString().slice(0, 7)
+}
+
+export function shiftMonthKey(month: string, delta: number): string {
+  const [year, monthNum] = month.split('-').map(Number)
+  const d = new Date(year, monthNum - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function formatMonthLabel(month: string): string {
+  const [year, monthNum] = month.split('-').map(Number)
+  return format(new Date(year, monthNum - 1, 1), "MMMM 'de' yyyy", { locale: ptBR })
+}
 
 export const DEMAND_STATUS_ORDER: DemandStatus[] = [
   'a_fazer',

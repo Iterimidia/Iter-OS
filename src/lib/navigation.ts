@@ -42,6 +42,7 @@ export const AREAS: AppArea[] = [
   { id: 'operacional:comercial', baseId: 'operacional', label: 'Comercial', path: '/operacional/comercial', icon: 'Handshake' },
   { id: 'operacional:clientes', baseId: 'operacional', label: 'Clientes', path: '/operacional/clientes', icon: 'Users' },
   { id: 'operacional:projetos', baseId: 'operacional', label: 'Projetos', path: '/operacional/projetos', icon: 'Layers' },
+  { id: 'operacional:entregas', baseId: 'operacional', label: 'Entregas', path: '/operacional/entregas', icon: 'PackageCheck' },
   { id: 'operacional:operacao', baseId: 'operacional', label: 'Operação', path: '/operacional/operacao', icon: 'KanbanSquare' },
   { id: 'operacional:calendario', baseId: 'operacional', label: 'Calendário', path: '/operacional/calendario', icon: 'CalendarDays' },
   { id: 'operacional:financeiro', baseId: 'operacional', label: 'Financeiro', path: '/operacional/financeiro', icon: 'Wallet' },

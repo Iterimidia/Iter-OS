@@ -19,6 +19,7 @@ import { CommercialPage } from '@/features/operational/CommercialPage'
 import { ClientsListPage } from '@/features/operational/ClientsListPage'
 import { ClientDetailPage } from '@/features/operational/ClientDetailPage'
 import { ProjectsPage } from '@/features/operational/ProjectsPage'
+import { DeliveriesPage } from '@/features/operational/DeliveriesPage'
 import { OperationPage } from '@/features/operational/OperationPage'
 import { OperationalCalendarPage } from '@/features/operational/OperationalCalendarPage'
 import { FinancePage } from '@/features/operational/FinancePage'
@@ -84,6 +85,9 @@ export function App() {
           </Route>
           <Route element={<RequireArea areaId="operacional:projetos" />}>
             <Route path="/operacional/projetos" element={<ProjectsPage />} />
+          </Route>
+          <Route element={<RequireArea areaId="operacional:entregas" />}>
+            <Route path="/operacional/entregas" element={<DeliveriesPage />} />
           </Route>
           <Route element={<RequireArea areaId="operacional:operacao" />}>
             <Route path="/operacional/operacao" element={<OperationPage />} />

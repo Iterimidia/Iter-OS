@@ -105,6 +105,7 @@ export const ROLES: Record<RoleId, Role> = {
       'operacional:comercial',
       'operacional:clientes',
       'operacional:projetos',
+      'operacional:entregas',
       'operacional:operacao',
       'operacional:calendario',
       'operacional:arquivos',

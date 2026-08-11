@@ -262,6 +262,27 @@ export interface ContentItem {
   createdAt: string
 }
 
+export interface DeliveryPlanItem {
+  id: string
+  clientId: string
+  label: string
+  monthlyQuantity: number
+  format?: ContentFormat
+  createdAt: string
+}
+
+export type DeliveryUnitStatus = 'pendente' | 'em_producao' | 'entregue'
+
+export interface DeliveryUnit {
+  id: string
+  planItemId: string
+  clientId: string
+  /** Mês de referência no formato 'YYYY-MM'. */
+  month: string
+  status: DeliveryUnitStatus
+  createdAt: string
+}
+
 export interface DashboardCardDefinition {
   id: string
   section: 'financeiro' | 'comercial' | 'clientes' | 'operacao' | 'criativo' | 'calendario'
