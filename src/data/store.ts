@@ -149,6 +149,16 @@ const FALLBACK_APP_SETTINGS: AppSettings = {
 
 let realtimeSubscribed = false
 
+/**
+ * Ids de itens contratados cuja criação ainda não foi confirmada no Supabase.
+ * Enquanto pendente, ninguém deve tentar criar delivery_units apontando pra
+ * esse plan_item_id — a foreign key exige que o item já exista de fato no banco.
+ */
+const pendingPlanItemIds = new Set<string>()
+export function isDeliveryPlanItemPending(id: string): boolean {
+  return pendingPlanItemIds.has(id)
+}
+
 /** Assina mudanças de uma tabela-lista e mescla no array correspondente do estado, por id (idempotente: seguro mesmo se a própria action já tiver feito a atualização otimista). */
 function subscribeListTable<T extends { id: string }>(
   table: string,
@@ -570,13 +580,25 @@ export const useDataStore = create<DataState>()((set, get) => ({
 
   addDeliveryPlanItem: (data) => {
     const item: DeliveryPlanItem = { ...data, id: generateId('dplan'), createdAt: todayIso() }
+    pendingPlanItemIds.add(item.id)
     set((s) => ({ deliveryPlanItems: [...s.deliveryPlanItems, item] }))
     supabase
       .from('delivery_plan_items')
       .insert(entityToRow(item))
       .then(({ error }) => {
-        if (reportError('criar item contratado', 'delivery_plan_items', error))
+        if (reportError('criar item contratado', 'delivery_plan_items', error)) {
           set((s) => ({ deliveryPlanItems: s.deliveryPlanItems.filter((p) => p.id !== item.id) }))
+          pendingPlanItemIds.delete(item.id)
+          return
+        }
+        // Só cria as unidades do mês depois que o item existe de fato no banco —
+        // criar em paralelo arrisca a foreign key (delivery_units.plan_item_id
+        // exige um plan_item_id que já esteja persistido).
+        const month = todayIso().slice(0, 7)
+        for (let i = 0; i < item.monthlyQuantity; i++) {
+          get().addDeliveryUnit({ planItemId: item.id, clientId: item.clientId, month, status: 'pendente' })
+        }
+        pendingPlanItemIds.delete(item.id)
       })
     return item
   },

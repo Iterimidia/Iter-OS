@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { DeliveryPlanItem, DeliveryUnitStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
-import { useDataStore } from '@/data/store'
+import { isDeliveryPlanItemPending, useDataStore } from '@/data/store'
 import { canAccessClient, canPerformAction } from '@/lib/permissions'
 import {
   cn,
@@ -38,8 +38,12 @@ export function DeliveriesPage() {
 
   // Gera as unidades do mês corrente pra cada item contratado, até a quantidade combinada.
   // Idempotente: só cria a diferença que falta, então não duplica ao rodar de novo.
+  // Pula itens ainda pendentes de confirmação no Supabase (evita a foreign key
+  // delivery_units_plan_item_id_fkey: addDeliveryPlanItem já cuida desse caso
+  // sozinho depois que o item é confirmado).
   useEffect(() => {
     for (const item of deliveryPlanItems) {
+      if (isDeliveryPlanItemPending(item.id)) continue
       const existing = deliveryUnits.filter((u) => u.planItemId === item.id && u.month === month).length
       const missing = item.monthlyQuantity - existing
       for (let i = 0; i < missing; i++) {
