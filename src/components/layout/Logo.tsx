@@ -5,13 +5,37 @@ interface LogoProps {
   markOnly?: boolean
 }
 
+/**
+ * Wordmark da Iter Mídia — recriado em código a partir da referência de marca
+ * (ainda sem o arquivo oficial da logo). Badge roxo escuro auto-contido para
+ * funcionar em qualquer fundo: "ITER" em degradê magenta→roxo, "MÍDIA" no
+ * off-white da marca. Trocar pelo SVG/PNG oficial assim que for enviado.
+ */
 export function Logo({ className, markOnly = false }: LogoProps) {
-  return (
-    <div className={cn('flex items-center gap-2.5', className)}>
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-iter-primary to-iter-secondary text-sm font-bold text-white shadow-glow">
+  if (markOnly) {
+    return (
+      <span
+        className={cn(
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#3A2361] text-sm font-black italic text-iter-bg shadow-soft',
+          className,
+        )}
+      >
         I
       </span>
-      {!markOnly && <span className="text-base font-semibold tracking-tight text-iter-text">Iter OS</span>}
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center gap-0.5 rounded-xl bg-[#3A2361] px-3.5 py-2 shadow-soft',
+        className,
+      )}
+    >
+      <span className="bg-gradient-to-r from-[#D0559E] to-[#6B3AA0] bg-clip-text text-lg font-black italic tracking-tight text-transparent">
+        ITER
+      </span>
+      <span className="text-lg font-black italic tracking-tight text-iter-bg">MÍDIA</span>
     </div>
   )
 }

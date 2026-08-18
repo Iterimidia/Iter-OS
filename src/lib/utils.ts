@@ -214,7 +214,7 @@ export const ACTION_LIST: ActionPermission[] = [
   'gerenciar_usuarios',
 ]
 
-export const AVATAR_COLORS = ['#7C6BFF', '#22D3C4', '#38BDF8', '#F5A623', '#34D399', '#EF4444', '#60A5FA', '#F472B6']
+export const AVATAR_COLORS = ['#9C3D87', '#1F6E90', '#4D2E80', '#6667A8', '#0A5580', '#A85F16', '#1F7A4C', '#B23A5C']
 
 export const LEAD_STATUS_ORDER: LeadStatus[] = [
   'lead',

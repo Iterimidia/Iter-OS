@@ -9,6 +9,7 @@ export default {
           'primary-hover': 'rgb(var(--iter-primary-hover) / <alpha-value>)',
           secondary: 'rgb(var(--iter-secondary) / <alpha-value>)',
           accent: 'rgb(var(--iter-accent) / <alpha-value>)',
+          tertiary: 'rgb(var(--iter-tertiary) / <alpha-value>)',
           bg: 'rgb(var(--iter-background) / <alpha-value>)',
           'bg-alt': 'rgb(var(--iter-background-alt) / <alpha-value>)',
           surface: 'rgb(var(--iter-surface) / <alpha-value>)',
@@ -45,14 +46,14 @@ export default {
         '3xl': '1.5rem',
       },
       boxShadow: {
-        soft: '0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.2)',
-        card: '0 4px 24px -4px rgb(0 0 0 / 0.35), 0 1px 2px 0 rgb(0 0 0 / 0.3)',
-        popover: '0 12px 40px -8px rgb(0 0 0 / 0.5)',
-        glow: '0 0 0 1px rgb(var(--iter-primary) / 0.4), 0 0 24px -4px rgb(var(--iter-primary) / 0.55)',
+        soft: '0 1px 2px 0 rgb(42 47 102 / 0.06), 0 1px 3px 0 rgb(42 47 102 / 0.06)',
+        card: '0 2px 10px -2px rgb(42 47 102 / 0.08), 0 1px 2px 0 rgb(42 47 102 / 0.06)',
+        popover: '0 16px 40px -8px rgb(42 47 102 / 0.18)',
+        glow: '0 0 0 1px rgb(var(--iter-primary) / 0.35), 0 0 24px -6px rgb(var(--iter-primary) / 0.4)',
       },
       backgroundImage: {
         'iter-mesh':
-          'radial-gradient(at 20% 0%, rgb(var(--iter-primary) / 0.25) 0px, transparent 50%), radial-gradient(at 80% 0%, rgb(var(--iter-secondary) / 0.2) 0px, transparent 50%), radial-gradient(at 50% 100%, rgb(var(--iter-accent) / 0.12) 0px, transparent 50%)',
+          'radial-gradient(at 20% 0%, rgb(var(--iter-primary) / 0.10) 0px, transparent 50%), radial-gradient(at 80% 0%, rgb(var(--iter-secondary) / 0.08) 0px, transparent 50%), radial-gradient(at 50% 100%, rgb(var(--iter-accent) / 0.06) 0px, transparent 50%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.25s ease-out',

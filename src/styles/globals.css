@@ -5,31 +5,33 @@
 /*
  * Tokens de cor da Iter Mídia — formato "R G B" (sem vírgulas) para permitir
  * opacidade via Tailwind (rgb(var(--x) / <alpha-value>)). Ver src/lib/theme.ts
- * para a versão hex dos mesmos tokens e para o comentário sobre origem da
- * paleta. Ajuste os dois arquivos juntos quando a marca oficial for definida.
+ * para a versão hex dos mesmos tokens e para a origem da paleta (marca oficial
+ * da Iter Mídia, fundo off-white ~90% + cores da marca para botões/dados).
+ * Ajuste os dois arquivos juntos.
  */
 :root {
-  --iter-primary: 124 107 255;
-  --iter-primary-hover: 143 128 255;
-  --iter-secondary: 34 211 196;
-  --iter-accent: 56 189 248;
+  --iter-primary: 156 61 135;
+  --iter-primary-hover: 131 52 112;
+  --iter-secondary: 31 110 144;
+  --iter-accent: 77 46 128;
+  --iter-tertiary: 102 103 168;
 
-  --iter-background: 9 10 15;
-  --iter-background-alt: 13 15 21;
-  --iter-surface: 19 21 29;
-  --iter-surface-alt: 24 27 37;
-  --iter-surface-hover: 30 33 44;
-  --iter-border: 38 42 56;
-  --iter-border-soft: 27 30 40;
+  --iter-background: 243 240 232;
+  --iter-background-alt: 237 234 224;
+  --iter-surface: 255 255 255;
+  --iter-surface-alt: 245 243 238;
+  --iter-surface-hover: 239 237 230;
+  --iter-border: 227 224 216;
+  --iter-border-soft: 236 233 225;
 
-  --iter-text: 243 244 247;
-  --iter-text-muted: 154 160 178;
-  --iter-text-faint: 103 109 128;
+  --iter-text: 42 47 102;
+  --iter-text-muted: 91 95 130;
+  --iter-text-faint: 118 121 146;
 
-  --iter-success: 52 211 153;
-  --iter-warning: 245 166 35;
-  --iter-danger: 239 68 68;
-  --iter-info: 96 165 250;
+  --iter-success: 31 122 76;
+  --iter-warning: 168 95 22;
+  --iter-danger: 194 59 71;
+  --iter-info: 10 85 128;
 }
 
 @layer base {
@@ -38,7 +40,7 @@
   }
 
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
@@ -48,7 +50,7 @@
   }
 
   ::selection {
-    @apply bg-iter-primary/30 text-iter-text;
+    @apply bg-iter-primary/20 text-iter-text;
   }
 
   /* scrollbar discreto, no tom do app */
@@ -92,7 +94,7 @@
   html,
   body {
     background: #ffffff !important;
-    color: #111318 !important;
+    color: #2a2f66 !important;
   }
 
   .print-area {
