@@ -58,34 +58,48 @@ As senhas desses usuários fictícios (`FIXTURE_SENHA_FAKE_*`) são placeholders
 óbvios pelo mesmo motivo da migration #2: a coluna ainda é texto plano e
 obrigatória no schema atual.
 
-**Reprodução (quando branches estiverem disponíveis — ver bloqueio abaixo):**
-com a Supabase CLI instalada e o projeto linkado, `supabase db reset` (local)
-ou a criação de um branch de desenvolvimento aplicaria as 7 migrations e, em
-seguida, o seed automaticamente (via `[db.seed]` em `config.toml`).
+**Reprodução local:** com a Supabase CLI instalada e o projeto linkado,
+`supabase db reset` aplicaria as 7 migrations e, em seguida, o seed
+automaticamente (via `[db.seed]` em `config.toml`).
 
-## ⚠️ Bloqueio encontrado: branches de desenvolvimento exigem plano Pro
+## Ambiente isolado: projeto `Iter OS Staging` (em vez de branches)
 
-O ponto 4 da Fase 0 previa criar um branch de desenvolvimento isolado no
-Supabase para validar tudo isso de forma 100% segura, sem tocar em produção.
-Ao tentar criar o branch, a API retornou:
+O plano original previa um branch de desenvolvimento Supabase isolado. Ao
+tentar criar o branch, a API retornou:
 
 ```
 PaymentRequiredException: Branching is supported only on the Pro plan or above
 ```
 
-A organização está no plano **Free**, que não inclui branches. Isso não
-bloqueou o restante da Fase 0 (nenhuma migration/seed foi aplicada em
-produção; tudo foi validado por revisão estática cuidadosa: as migrations são
-a transcrição exata do que já roda em produção, e o seed foi conferido
-manualmente contra o schema atual — colunas, tipos e FKs batem). Mas significa
-que, até hoje, **não existe nenhum ambiente Supabase isolado** para testar com
-segurança mudanças de schema/RLS antes de aplicá-las em produção — inclusive a
-migração para Supabase Auth prevista para a Fase 1, que mexe diretamente em
-autenticação.
+A organização está no plano **Free**, que não inclui branches, e a decisão
+(aprovada) foi **não** fazer upgrade para o Pro agora. Em vez disso, criamos
+um segundo projeto Supabase, também no plano Free (dentro do limite de 2
+projetos gratuitos por organização, sem custo e sem necessidade de cartão):
 
-Decisão necessária antes da Fase 1: fazer upgrade da organização para o plano
-Pro (habilita branches) ou aceitar validar mudanças sensíveis diretamente em
-produção, com o backup manual (abaixo) como única rede de segurança.
+- **Nome:** `Iter OS Staging`
+- **Ref/project_id:** `nbsezkskzizxtffhdeer`
+- **Organização:** `woygpanhwdgpkikyzxrt` (mesma da produção)
+- **Região:** `sa-east-1` (mesma da produção)
+- **Custo:** $0/mês (confirmado via `get_cost` antes da criação)
+
+Nele foram aplicadas, em ordem, as 7 migrations acima e, na sequência, todo o
+`seed-test-fixtures.sql` — com uma única e deliberada divergência: **a
+migration #2 foi aplicada sem o `insert` do usuário administrador real**
+(nome e e-mail de `daniel@itermidia.com.br`), mantendo apenas os inserts de
+`dashboard_cards`/`app_settings` (dados de configuração, não pessoais). Isso
+segue a instrução explícita de que nenhum dado real de produção — nem mesmo
+nome/e-mail — deveria existir no staging. O usuário admin usado para testar
+no staging é o `seed_admin` fictício.
+
+Validação pós-aplicação: `list_tables` confirma as mesmas 13 tabelas da
+produção, todas com RLS habilitada, com as contagens de linha esperadas dos
+fixtures (nenhuma tabela vazia inesperadamente, nenhuma linha a mais).
+`get_advisors` (security) retornou `{"lints":[]}`, igual à produção.
+Produção não foi tocada em nenhum momento deste processo.
+
+Esse projeto staging é o ambiente a usar a partir da Fase 1 para testar
+schema, RLS e a migração para Supabase Auth com segurança, sem risco à
+produção.
 
 ## Backup manual e ausência de PITR
 
@@ -112,15 +126,20 @@ Resultado do snapshot (estado real de produção em 2026-08-19):
 | app_settings | 1 |
 | projects, tasks, calendar_events, leads, content_items, files | 0 |
 
-**Limitação importante:** esse snapshot ficou salvo apenas dentro do sandbox
-temporário desta sessão (não versionado no git — contém dados reais de
-clientes/financeiro, então não deve entrar no repositório) e será perdido
-quando o container for reciclado. Ele comprova que o mecanismo funciona, mas
-**não é, ainda, um backup durável**. Recomendação para uso real: rodar
-`backup-export.mjs` a partir de uma máquina/CI com armazenamento persistente
-(ex: seu computador, ou um GitHub Action agendado) e salvar a saída em um
-local com controle de acesso (ex: bucket privado, Google Drive restrito à
-direção) — nunca no repositório git, já que os dados são reais.
+Esse snapshot foi entregue diretamente (fora do git, fora do sandbox
+temporário) para armazenamento privado e durável por conta própria — não
+ficou salvo neste repositório, já que contém dados reais de
+clientes/financeiro.
+
+**Rotina recorrente — deliberadamente adiada, não bloqueia a Fase 0:** o
+mecanismo (`backup-export.mjs`) está pronto e funcional, mas configurar sua
+execução recorrente (agendamento local, variável de ambiente com a
+`service_role key`, destino de armazenamento) fica para depois, por decisão
+explícita. Recomendação, quando for montar isso: rodar a partir de uma
+máquina com armazenamento persistente (nunca deste sandbox), salvando a
+saída em um local com controle de acesso (ex: pasta local sincronizada com
+Google Drive/iCloud privado) — nunca no repositório git, já que os dados são
+reais.
 
 ## `scripts/seed-auth-test-users.mjs` — não executar ainda
 
