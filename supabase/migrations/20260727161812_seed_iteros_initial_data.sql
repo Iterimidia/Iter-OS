@@ -1,21 +1,17 @@
--- ATENÇÃO: esta migration foi versionada com o valor real de
--- `password` REDIGIDO. A migration efetivamente aplicada em produção
--- inseriu a senha em texto plano do usuário administrador real
--- (daniel@itermidia.com.br). Esse valor NUNCA deve existir no
--- histórico do repositório (compartilhado com colaboradores/Codex).
+-- Esta migration é replicada automaticamente por qualquer bootstrap
+-- (supabase db reset, criação de projeto/branch novo). Por isso ela contém
+-- SOMENTE dados de referência/configuração (dashboard_cards, app_settings) —
+-- nenhuma informação pessoal real.
 --
--- O placeholder abaixo é intencionalmente inválido como senha de
--- login (hash não corresponde a nada) — quem rodar esta migration do
--- zero precisa definir uma senha própria manualmente antes de usar
--- este usuário. Isso é consistente com o achado de segurança já
--- reportado: `users.password` em texto plano é uma vulnerabilidade
--- crítica a ser eliminada na migração para Supabase Auth (Fase 1+),
--- não algo a preservar/reproduzir.
-insert into public.users (id, name, email, password, role, job_title, avatar_initials, avatar_color, active, allowed_bases, allowed_areas, allowed_actions, allowed_client_ids, allowed_dashboard_cards, created_at)
-values (
-  'usr_daniel', 'Daniel Michelin', 'daniel@itermidia.com.br', '__REDACTED_SET_MANUALLY__', 'admin', 'CEO', 'DM', '#7C6BFF', true,
-  '[]', '[]', '[]', '"all"', '"all"', current_date - interval '400 days'
-);
+-- Em produção, esta migration originalmente também inseriu o usuário
+-- administrador real (nome/e-mail reais). Esse insert foi deliberadamente
+-- movido para fora deste arquivo, para `supabase/production-only/
+-- 20260727161812_admin_user_bootstrap.sql` — uma pasta que nenhum processo
+-- automatizado lê, mantida só para registro histórico/auditoria (com a
+-- senha já redigida). Ver esse arquivo e o README para o motivo completo.
+-- Juntos, os dois arquivos reproduzem exatamente o que rodou em produção;
+-- separados, este aqui sozinho é seguro para rodar em qualquer ambiente
+-- novo (staging, local, CI) sem criar dado pessoal real.
 
 insert into public.dashboard_cards (id, section, title, visible_to_roles) values
 ('card_receita_prevista', 'financeiro', 'Receita prevista', '["admin","direcao","conselho","financeiro"]'),

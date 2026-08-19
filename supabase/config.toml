@@ -1,4 +1,25 @@
-project_id = "scchivyltudzbjbsveva"
+# ATENÇÃO — leia antes de assumir o que este arquivo faz:
+#
+# `project_id` abaixo é usado SOMENTE pelo `supabase start` local (nomeia os
+# containers Docker e a URL da API local). Ele NÃO vincula este repositório
+# a nenhum projeto remoto — a documentação do Supabase é explícita sobre
+# isso: o vínculo remoto (`supabase link`, `db push`, etc.) é controlado à
+# parte, por `--project-ref` ou pelo estado local de `supabase link`, nunca
+# por este campo.
+#
+# Por isso o valor abaixo é um identificador genérico, não o ref real de
+# nenhum projeto — evita a leitura errada de "este arquivo diz qual projeto
+# é o alvo". Nenhum script deste repositório decide produção-vs-staging a
+# partir deste arquivo. Cada script identifica o alvo explicitamente pela
+# variável de ambiente SUPABASE_URL (que contém o ref real no hostname) e,
+# no caso de scripts que escrevem dados, valida esse ref contra uma
+# allowlist antes de fazer qualquer alteração — ver
+# supabase/scripts/seed-auth-test-users.mjs e supabase/README.md.
+#
+# Refs reais dos projetos (documentação, não usados por este arquivo):
+#   produção: scchivyltudzbjbsveva
+#   staging:  nbsezkskzizxtffhdeer  (Iter OS Staging)
+project_id = "iteros-local-dev"
 
 [db.seed]
 enabled = true

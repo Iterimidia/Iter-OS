@@ -9,3 +9,10 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .netlify
+
+# Defesa em profundidade: exports de backup (dados reais de produção) nunca
+# devem ser commitados, mesmo se alguém rodar o script a partir da raiz do
+# repo por engano. O script já recusa isso por padrão (ver
+# supabase/scripts/backup-export.mjs) — isto é a segunda camada.
+backup-*/
+.local-backups/
