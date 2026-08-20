@@ -20,21 +20,6 @@ npm run build     # build de produção em dist/
 npm run typecheck
 ```
 
-## Login de demonstração
-
-Qualquer e-mail abaixo, senha **`iter123`** para todos (mock — ver `src/features/auth/useAuth.ts`):
-
-| E-mail | Perfil |
-|---|---|
-| daniel@itermidia.com.br | Admin (vê as 3 bases) |
-| raylhane@itermidia.com.br | Gestão Criativa |
-| ester@itermidia.com.br / melissa@itermidia.com.br | Criativo |
-| conselho@itermidia.com.br | Conselho |
-| pedro@itermidia.com.br | Operacional |
-| camila@itermidia.com.br | Financeiro |
-
-A tela de login também lista essas contas com um clique para preencher.
-
 ## Estrutura
 
 ```

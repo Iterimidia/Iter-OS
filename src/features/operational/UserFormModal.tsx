@@ -101,11 +101,12 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.name.trim() || !form.email.trim()) return
+    if (!user && !form.password.trim()) return
 
     const payload = {
       name: form.name,
       email: form.email,
-      password: form.password || user?.password || 'iter123',
+      password: form.password || user?.password || '',
       role: form.role,
       jobTitle: form.jobTitle,
       avatarInitials: getInitials(form.name),
@@ -151,7 +152,14 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
           </div>
           <div>
             <Label htmlFor="password">Senha {user && '(deixe em branco para manter)'}</Label>
-            <Input id="password" type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={user ? '••••••••' : 'iter123'} />
+            <Input
+              id="password"
+              type="text"
+              required={!user}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              placeholder={user ? '••••••••' : 'Defina uma senha'}
+            />
           </div>
           <div className="flex items-end justify-between rounded-lg border border-iter-border px-3 py-2.5">
             <span className="text-xs font-medium text-iter-muted">Usuário ativo</span>
