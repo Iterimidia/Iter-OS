@@ -1,9 +1,10 @@
 # Supabase — Iter OS
 
-Este diretório versiona, pela primeira vez, o histórico real de schema do
-projeto Supabase do Iter OS (projeto `Iter OS`, ref `scchivyltudzbjbsveva`,
-org `woygpanhwdgpkikyzxrt`), além de fixtures de teste e scripts de apoio.
-Faz parte da Fase 0 (preparação segura) do roadmap de estabilização.
+Este diretório versiona o histórico real de schema do projeto Supabase do
+Iter OS (projeto `Iter OS`, ref `scchivyltudzbjbsveva`, org
+`woygpanhwdgpkikyzxrt`), além de fixtures de teste e scripts de apoio.
+Cobre a Fase 0 (preparação segura) e a Fase 1 (fundação de Supabase Auth,
+em progresso) do roadmap de estabilização.
 
 ## Estrutura
 
@@ -15,7 +16,7 @@ supabase/
   seed-test-fixtures.sql             # dados 100% fictícios para dev/QA (usuários, clientes, etc.)
   scripts/
     backup-export.mjs                # export manual de backup (produção), já executado uma vez nesta fase
-    seed-auth-test-users.mjs         # Fase 1/2 — NÃO EXECUTAR AINDA (depende de auth_user_id)
+    seed-auth-test-users.mjs         # alternativa ao vínculo manual — precisa da service_role key do staging
 ```
 
 ## Migrations
@@ -32,6 +33,10 @@ em produção:
 5. `20260804221222_enable_realtime_on_all_tables` — Realtime nas 11 tabelas base.
 6. `20260806013959_add_client_billing_type` — colunas `billing_type`/`commission_percentage`.
 7. `20260811142647_add_delivery_control` — tabelas de Controle de Entregas.
+
+A migration #8, `20260820172057_add_auth_user_id_to_users` (Fase 1), já está
+neste diretório e aplicada no staging — ver seção "Fase 1" abaixo. Ainda
+**não foi aplicada em produção**.
 
 **Sem PII (importante):** a migration #2, tal como aplicada em produção,
 inseria também o usuário administrador real (identidade pessoal completa:
@@ -149,28 +154,49 @@ saída em um local com controle de acesso (ex: pasta local sincronizada com
 Google Drive/iCloud privado) — nunca no repositório git, já que os dados são
 reais.
 
-## `scripts/seed-auth-test-users.mjs` — não executar ainda
+## Fase 1 — Auth real no staging
 
-Cria identidades reais em `auth.users` para os 4 usuários fictícios e as
-vincula via `public.users.auth_user_id`. Essa coluna **não existe** no schema
-atual — só é criada na Fase 1, quando a migração para Supabase Auth começa.
-O script faz *preflight* antes de criar qualquer usuário: confirma que
-`public.users.auth_user_id` existe e que a Admin API responde; como a coluna
-ainda não existe, o preflight falha de propósito e o script para antes de
-tocar em `auth.users` — nenhuma identidade é criada, mesmo que alguém rode
-o script hoje por engano. Também recusa explicitamente o project ref de
-produção e só aceita o project ref de staging conhecido. Está aqui apenas
-como próximo passo já desenhado, testado (recusa/preflight) e documentado.
+A coluna `public.users.auth_user_id` (migration
+`20260820172057_add_auth_user_id_to_users`) já está aplicada no staging.
+`public.users` continua sendo a única fonte de autorização (papel, áreas,
+ações, clientes) — `auth.users`/`user_metadata` nunca são usados para isso.
+`password` (texto plano) permanece por enquanto: o frontend ainda depende
+dele, e só será removido depois que o login real migrar para Supabase Auth.
 
-## SMTP (envio de e-mail de convite) — status não confirmado
+Os 4 usuários Auth de teste foram criados **manualmente pelo Dashboard**
+(Authentication → Users → Add user, com "Auto Confirm User" marcado) em vez
+de via `seed-auth-test-users.mjs`, por decisão explícita de não compartilhar
+a `service_role key` nesta sessão. Depois de criados, o vínculo com
+`public.users.auth_user_id` foi feito por e-mail (script/SQL, sem
+`service_role` — a conexão administrativa usada já tem esse nível de acesso
+por outra via). Resultado validado: 4/4 vinculados, sem duplicidade,
+reexecução do vínculo é no-op (idempotente), `seed_usuario_inativo`
+continua com `active: false` em `public.users`.
 
-A Fase 1 prevê convidar usuários reais por e-mail (não senhas definidas pelo
-admin). Isso depende de SMTP configurado no projeto Supabase (custom SMTP ou
-o padrão, com limite baixo de envios). **Não confirmei esse status nesta
-fase** — nenhum convite real foi enviado. Antes de iniciar a Fase 1, verificar
-manualmente em Project Settings → Auth → SMTP Settings se há um provedor
-configurado; caso contrário, e-mails de convite podem não ser entregues ou
-esbarrar no limite baixíssimo do SMTP padrão do Supabase.
+Teste de login real (via chave `anon`/publishable, sem `service_role`):
+credencial válida retorna sessão com `access_token` e o `sub` do JWT bate
+exatamente com o `auth_user_id` salvo no perfil; credencial inválida recusa
+com `invalid_credentials`. O frontend **não** foi alterado — login continua
+pelo fluxo antigo (`public.users.password`) até uma fase futura.
+
+`scripts/seed-auth-test-users.mjs` continua disponível e válido para quando
+alguém tiver a `service_role key` do staging à mão (ex: localmente) — é só
+uma forma alternativa de fazer o mesmo que foi feito manualmente aqui.
+
+## SMTP e convites — status
+
+Não confirmei se há um provedor de SMTP customizado configurado no projeto
+(Project Settings → Auth → SMTP Settings) — isso requer checagem manual no
+painel. **Achado desta fase:** para os testes técnicos com usuários
+fictícios, SMTP não foi necessário — o Dashboard permite criar um usuário já
+com e-mail confirmado ("Auto Confirm User"), sem enviar nenhum e-mail. Isso
+resolve os testes de staging, mas **não serve para usuários reais**: a
+migração da equipe real para Supabase Auth (fora do escopo desta fase)
+depende de convite por e-mail de fato entregue, o que exige ou SMTP
+customizado configurado, ou aceitar o limite baixíssimo do SMTP padrão do
+Supabase (poucos e-mails/hora, inviável para produção). Antes de migrar
+usuários reais: confirmar manualmente se há SMTP customizado configurado; se
+não houver, configurar um antes de enviar qualquer convite real.
 
 ## Princípio de teste para as próximas fases
 
