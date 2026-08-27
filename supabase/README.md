@@ -183,6 +183,63 @@ pelo fluxo antigo (`public.users.password`) até uma fase futura.
 alguém tiver a `service_role key` do staging à mão (ex: localmente) — é só
 uma forma alternativa de fazer o mesmo que foi feito manualmente aqui.
 
+## Fase 2 — RLS e permissões reais no staging
+
+As policies `allow_all` das 13 tabelas foram substituídas por policies reais,
+ancoradas no Supabase Auth + no perfil em `public.users`, espelhando
+`src/lib/permissions.ts`. Três migrations novas:
+
+- `20260820180000_phase2_real_rls_policies` — cria `public.role_default_actions`
+  (tabela de referência com as ações padrão de cada papel, espelhando `ROLES`
+  em `permissions.ts`), 6 funções auxiliares `SECURITY DEFINER`
+  (`iteros_profile_id`, `iteros_is_admin`, `iteros_profile_role`,
+  `iteros_has_action`, `iteros_can_access_client`, `iteros_has_ver_financeiro`),
+  remove as 13 policies `allow_all` e cria as policies reais (SELECT/INSERT/
+  UPDATE/DELETE) em todas as tabelas.
+- `20260827155500_phase2_lock_down_helper_function_grants` — restringe
+  `EXECUTE` das 6 funções auxiliares a `authenticated` (eram chamáveis por
+  `anon` também; não é uma falha de segurança — as funções só leem o perfil
+  do *próprio* chamador via `auth.uid()`, retornando `null`/`false` sem
+  sessão — mas reduz a superfície exposta via PostgREST, resolvendo o aviso
+  do `get_advisors`).
+- `20260827230000_phase2_fix_table_grants_for_authenticated` — **correção de
+  um bug real encontrado durante os testes**: o `drop schema public cascade`
+  usado para provar reprodutibilidade (Fase 0, ponto 6) apagou os `GRANT`
+  de tabela que o Supabase configura por padrão no bootstrap do projeto.
+  Sem esse `GRANT`, o PostgREST barra a requisição *antes* de avaliar RLS
+  (`permission denied for table X`), mascarando testes de RLS como falha de
+  permissão genérica. Corrigido com `GRANT SELECT/INSERT/UPDATE/DELETE ...
+  TO authenticated` (deliberadamente **sem** conceder nada a `anon` — regra
+  central da fase: "todo acesso protegido exige usuário autenticado").
+
+**`SECURITY DEFINER` — por quê:** as policies precisam consultar o próprio
+perfil do chamador em `public.users`. Fazer isso via subconsulta direta
+dentro de uma policy da própria tabela reativa a RLS recursivamente
+("infinite recursion detected in policy"). Encapsular a leitura em funções
+`SECURITY DEFINER` com `search_path` travado é o padrão documentado pela
+Supabase para quebrar essa recursão — é o único uso de `SECURITY DEFINER`
+neste projeto, e só para leitura do perfil do próprio chamador.
+
+**Decisão de escopo:** a RLS cobre as dimensões de segurança de *dados*
+(autenticação, perfil ativo, cliente, `ver_financeiro`, ações de escrita,
+`visible_to_roles`). Visibilidade por área/base continua sendo decisão de
+navegação da aplicação (rotas/menus), como já era — não há dimensão por
+linha para "área" na maioria das tabelas, e replicá-la na RLS não traria
+ganho real de segurança de dados.
+
+**Testes executados** (`scripts/phase2-rls-test.sh`, via chave anon +
+login real com as 4 credenciais fictícias — sem `service_role`): 22/22
+comportamentos corretos — não autenticado bloqueado (permission denied),
+admin acessa tudo, `seed_operacional_restrito` vê só Cliente A (não B),
+sem `ver_financeiro` não acessa financeiro, `seed_financeiro` acessa
+financeiro, `seed_usuario_inativo` (sessão Auth válida) não acessa nenhuma
+tabela protegida, INSERT/UPDATE/DELETE permitidos e negados nos domínios
+mais sensíveis (tarefas por cliente, lançamentos financeiros).
+
+O frontend **não foi alterado** — a Fase 2 mexeu só em RLS/grants do banco.
+Como já esperado, isso pode ter deixado a interface do staging inconsistente
+até a Fase 3 (integração real do React com sessão/Auth).
+
 ## SMTP e convites — status
 
 Não confirmei se há um provedor de SMTP customizado configurado no projeto
