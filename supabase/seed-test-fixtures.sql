@@ -81,7 +81,13 @@ insert into public.projects
 values
   ('seed_project_a1', 'Campanha de lançamento (teste)', 'seed_client_a', 'Projeto fictício para QA.',
    'seed_operacional_restrito', '["seed_operacional_restrito"]', 'em_andamento', current_date - interval '10 days',
-   current_date + interval '20 days', 'alta', current_date - interval '10 days');
+   current_date + interval '20 days', 'alta', current_date - interval '10 days'),
+
+  -- client_id NULL de propósito: prova que a Fase 2 (B1) exige perfil ativo
+  -- mesmo para registros internos sem cliente — não deve ficar visível a
+  -- anon/inativo só por não ter client_id.
+  ('seed_project_internal', 'Projeto interno (teste, sem cliente)', null, 'Fictício, para testar client_id IS NULL.',
+   'seed_admin', '[]', 'em_andamento', null, null, 'media', current_date - interval '5 days');
 
 insert into public.tasks
   (id, title, description, client_id, project_id, responsible_id, due_date, priority, status, type, area, created_at)
@@ -95,7 +101,13 @@ insert into public.calendar_events
   (id, title, date, type, scope, client_id, task_id, status, priority, source)
 values
   ('seed_event_a1', 'Reunião de alinhamento (teste)', current_date + interval '7 days', 'reuniao', 'operacional',
-   'seed_client_a', null, 'agendado', 'media', 'manual');
+   'seed_client_a', null, 'agendado', 'media', 'manual'),
+
+  -- scope 'criativo' + client_id NULL: prova que a fronteira de área/base
+  -- (B3) e o fix de client_id IS NULL (B1) funcionam juntos — um papel sem
+  -- acesso à base 'criativo' (ex: financeiro) não deve ver este evento.
+  ('seed_event_criativo_only', 'Evento criativo (teste cruzamento de área)', current_date + interval '3 days',
+   'reuniao', 'criativo', null, null, 'agendado', 'media', 'manual');
 
 insert into public.financial_entries
   (id, type, category, description, client_id, amount, due_date, paid_date, status, recurring)
