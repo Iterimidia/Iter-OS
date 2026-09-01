@@ -7,6 +7,7 @@ import { canAccessBase, canViewArea, getBaseHomePath, getHomePathForUser } from 
 import { AREAS } from '@/lib/navigation'
 import { AppShell } from '@/components/layout/AppShell'
 import { LoadingScreen } from '@/app/LoadingScreen'
+import { LoadErrorScreen } from '@/app/LoadErrorScreen'
 
 /**
  * Bloqueia tudo que exige sessão. `status` já veio resolvido de App.tsx
@@ -35,6 +36,7 @@ export function RequireAuth() {
   const status = useAuthStore((s) => s.status)
   const identityId = useAuthStore((s) => s.session?.user.id ?? null)
   const loadedIdentityId = useDataStore((s) => s.loadedIdentityId)
+  const loadError = useDataStore((s) => s.loadError)
   const user = useCurrentUser()
 
   const dataReady = status === 'signed_in' && identityId !== null && loadedIdentityId === identityId
@@ -46,6 +48,13 @@ export function RequireAuth() {
   }, [dataReady, user])
 
   if (status === 'signed_out') return <Navigate to="/login" replace />
+  // Falha ao carregar (rede/API) não pode virar silenciosamente uma tela
+  // "vazia" indistinguível de "não existem registros" — mostra um estado
+  // próprio, com uma forma explícita de tentar de novo, em vez de deixar a
+  // árvore privada renderizar com coleções incompletas.
+  if (loadError && identityId) {
+    return <LoadErrorScreen message={loadError} onRetry={() => useDataStore.getState().initialize(identityId)} />
+  }
   if (!dataReady) return <LoadingScreen />
   return <Outlet />
 }
