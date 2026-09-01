@@ -179,6 +179,28 @@ async function createRow<T extends { id: string }>(
 }
 
 /**
+ * Resultado de uma releitura autoritativa de uma linha, distinguindo
+ * explicitamente os três desfechos possíveis (correção pós-revisão Codex,
+ * 3º round): a leitura pode ter sucesso e encontrar a linha, ter sucesso e
+ * confirmar que ela não existe, ou a leitura em si pode falhar (rede, RLS,
+ * permissão). Erro de leitura NUNCA pode ser tratado como "linha ausente"
+ * — são desfechos diferentes com consequências diferentes.
+ */
+type ReadResult<T> = { kind: 'found'; row: T } | { kind: 'absent' } | { kind: 'read_failed'; error: string }
+
+async function readRowSafely<T extends { id: string }>(table: string, id: string, columns: string): Promise<ReadResult<T>> {
+  // `columns` é uma `string` em runtime (não um literal), então o supabase-js
+  // cai no overload genérico de `.select()` e tiparia `data` como
+  // `GenericStringError` — o cast abaixo só contorna essa limitação de
+  // inferência de tipos; o valor realmente executado continua sendo a
+  // projeção passada (USER_SAFE_COLUMNS para `users`, `'*'` pros demais).
+  const { data, error } = await supabase.from(table).select(columns as '*').eq('id', id).maybeSingle()
+  if (error) return { kind: 'read_failed', error: error.message }
+  if (!data) return { kind: 'absent' }
+  return { kind: 'found', row: rowToEntity<T>(data as Record<string, unknown>) }
+}
+
+/**
  * Relê uma linha específica do banco (fonte autoritativa) e reconcilia só
  * ESSA linha no array local — nunca o array inteiro. Usado quando um
  * update/delete falha (ou não afeta a linha esperada): em vez de restaurar
@@ -186,15 +208,18 @@ async function createRow<T extends { id: string }>(
  * obsoleto — uma edição concorrente válida, ou um evento Realtime, pode
  * ter mudado a linha nesse meio-tempo), relê o estado real.
  *
- * `expectedRef` é a referência que NÓS MESMOS colocamos no array pela
- * atualização otimista (o objeto já com o patch aplicado, pra update; ou
- * `undefined`, pra delete — já que a otimista removeu a linha). Se, no
- * momento em que a reconciliação resolve, o que está no array pra esse id
- * NÃO é mais essa mesma referência, é porque outra coisa (Realtime, outra
- * chamada) já escreveu por cima nesse meio-tempo — nesse caso não
- * sobrescreve: o estado atual já é mais novo que o que estamos prestes a
- * aplicar, e é exatamente isso que evita um rollback defasado apagar uma
- * mudança concorrente válida.
+ * Correção pós-revisão Codex (3º round): a releitura em si pode falhar,
+ * independentemente de a linha existir ou não. Se falhar, NÃO conclui
+ * ausência — usa `fallback` (o último valor CONFIRMADO que já tínhamos,
+ * de antes da nossa própria tentativa) como estado seguro, sem inventar
+ * nem apagar dado nenhum a partir de uma conclusão não confirmada; sem
+ * `fallback` disponível, não mexe no array (o valor otimista que já
+ * estava lá permanece — o retorno `confirmed:false` já deixa claro pro
+ * chamador que isso NÃO é uma confirmação de sucesso). Quando outra coisa
+ * (Realtime, outra chamada) já escreveu por cima da linha nesse
+ * meio-tempo — detectado comparando `expectedRef` por referência — não
+ * sobrescreve em nenhum dos casos: o estado atual já é mais novo que
+ * qualquer coisa que estamos prestes a aplicar.
  */
 async function reconcileRowFromServer<T extends { id: string }>(
   set: SetFn,
@@ -203,29 +228,47 @@ async function reconcileRowFromServer<T extends { id: string }>(
   table: string,
   id: string,
   expectedRef: T | undefined,
-) {
-  const { data: fresh } = await supabase.from(table).select('*').eq('id', id).maybeSingle()
+  fallback: T | undefined,
+  columns: string,
+): Promise<{ confirmed: true } | { confirmed: false; error: string }> {
+  const result = await readRowSafely<T>(table, id, columns)
+  let outcome: { confirmed: true } | { confirmed: false; error: string } = { confirmed: true }
   set((s) => {
     const list = getList<T>(s, key)
     const current = list.find((x) => x.id === id)
     if (current !== expectedRef) return {} // já mudou por outro motivo desde que a reconciliação começou — não sobrescreve
-    if (fresh) {
-      const authoritative = rowToEntity<T>(fresh)
-      return { [key]: current ? list.map((x) => (x.id === id ? authoritative : x)) : [...list, authoritative] } as Partial<DataState>
+
+    if (result.kind === 'read_failed') {
+      outcome = { confirmed: false, error: `Não foi possível confirmar o estado atual em "${table}" (${result.error}). Recarregue para verificar.` }
+      if (!fallback) return {} // sem estado confirmado anterior pra usar como fallback -- não mexe (não é uma alegação de sucesso; `outcome` já sinaliza a falha)
+      return { [key]: current ? list.map((x) => (x.id === id ? fallback : x)) : [...list, fallback] } as Partial<DataState>
     }
-    return { [key]: list.filter((x) => x.id !== id) } as Partial<DataState> // a linha não existe mais de fato no banco
+    if (result.kind === 'found') {
+      return { [key]: current ? list.map((x) => (x.id === id ? result.row : x)) : [...list, result.row] } as Partial<DataState>
+    }
+    return { [key]: list.filter((x) => x.id !== id) } as Partial<DataState> // 'absent': leitura confirmou que a linha não existe mais de fato
   })
+  return outcome
 }
 
 /**
  * Atualiza otimisticamente; confirma que a linha foi REALMENTE afetada
- * (`.select().maybeSingle()` depois do update — ausência de `error` não
- * basta, o PostgREST não erra quando o `.eq('id', id)` não bate com
+ * (`.select(columns).maybeSingle()` depois do update — ausência de `error`
+ * não basta, o PostgREST não erra quando o `.eq('id', id)` não bate com
  * nenhuma linha, só devolve 0 resultados) e só então considera sucesso. Em
  * falha (erro real ou zero linhas afetadas), não restaura cegamente o
  * snapshot local anterior — relê a linha do banco (fonte autoritativa),
  * pra uma edição concorrente válida ou um evento Realtime não serem
- * apagados por um rollback defasado.
+ * apagados por um rollback defasado; se a própria releitura falhar, cai
+ * pro último valor CONFIRMADO antes desta tentativa (`previousConfirmed`),
+ * nunca conclui ausência (ver `reconcileRowFromServer`).
+ *
+ * `opts.columns`: projeção usada tanto no `.select()` de confirmação
+ * quanto na releitura de reconciliação — pra `users`, é OBRIGATÓRIO passar
+ * `USER_SAFE_COLUMNS` (nunca `'*'`/vazio), porque `password` não tem GRANT
+ * de SELECT e um `select('*')`/`select()` na tabela inteira falha por
+ * completo (não só omite a coluna) — o que faria até um UPDATE/DELETE que
+ * teve sucesso de fato parecer uma falha aqui.
  */
 async function updateRow<T extends { id: string }>(
   set: SetFn,
@@ -235,8 +278,10 @@ async function updateRow<T extends { id: string }>(
   label: string,
   id: string,
   patch: Partial<T>,
-  opts: { silent?: boolean } = {},
+  opts: { silent?: boolean; columns?: string } = {},
 ): Promise<MutationResult<T>> {
+  const columns = opts.columns ?? '*'
+  const previousConfirmed = getList<T>(get(), key).find((x) => x.id === id)
   let optimisticRef: T | undefined
   set((s) => ({
     [key]: getList<T>(s, key).map((x) => {
@@ -245,12 +290,13 @@ async function updateRow<T extends { id: string }>(
       return optimisticRef
     }),
   }) as Partial<DataState>)
-  const { data, error } = await supabase.from(table).update(entityToRow(patch)).eq('id', id).select().maybeSingle()
+  const { data, error } = await supabase.from(table).update(entityToRow(patch)).eq('id', id).select(columns as '*').maybeSingle()
   if (error || !data) {
-    await reconcileRowFromServer<T>(set, get, key, table, id, optimisticRef)
-    const err = error ?? { message: 'Nenhuma linha foi afetada — o registro pode ter sido excluído ou alterado por outra sessão.' }
-    reportError(label, table, err, opts)
-    return { ok: false, error: err.message }
+    const reconcile = await reconcileRowFromServer<T>(set, get, key, table, id, optimisticRef, previousConfirmed, columns)
+    const baseErr = error ? error.message : 'Nenhuma linha foi afetada — o registro pode ter sido excluído ou alterado por outra sessão.'
+    const finalErr = reconcile.confirmed ? baseErr : `${baseErr} ${reconcile.error}`
+    reportError(label, table, { message: finalErr }, opts)
+    return { ok: false, error: finalErr }
   }
   const authoritative = rowToEntity<T>(data)
   set((s) => ({ [key]: getList<T>(s, key).map((x) => (x.id === id ? authoritative : x)) }) as Partial<DataState>)
@@ -259,12 +305,17 @@ async function updateRow<T extends { id: string }>(
 
 /**
  * Remove otimisticamente; confirma que uma linha foi REALMENTE excluída
- * (mesma lógica do `updateRow`: `.select().maybeSingle()` depois do
+ * (mesma lógica do `updateRow`: `.select(columns).maybeSingle()` depois do
  * delete — zero linhas afetadas sem `error` conta como falha). Em falha,
  * não restaura a lista inteira antiga (que pode já ter mudado por outra
  * ação/Realtime enquanto isso corria) — relê só essa linha do banco e
  * reconcilia apenas ela (`expectedRef: undefined` porque a otimista já
- * removeu a linha; se algo já a recolocou lá — ex: Realtime — não mexe).
+ * removeu a linha; se algo já a recolocou lá — ex: Realtime — não mexe);
+ * se a própria releitura falhar, cai pro valor de antes da exclusão
+ * (`beforeDelete`) em vez de aceitar a ausência sem confirmação real.
+ *
+ * `opts.columns`: mesma exigência do `updateRow` — para `users`, sempre
+ * `USER_SAFE_COLUMNS`.
  */
 async function removeRow<T extends { id: string }>(
   set: SetFn,
@@ -273,14 +324,18 @@ async function removeRow<T extends { id: string }>(
   table: string,
   label: string,
   id: string,
+  opts: { columns?: string } = {},
 ): Promise<MutationResult<null>> {
+  const columns = opts.columns ?? '*'
+  const beforeDelete = getList<T>(get(), key).find((x) => x.id === id)
   set((s) => ({ [key]: getList<T>(s, key).filter((x) => x.id !== id) }) as Partial<DataState>)
-  const { data, error } = await supabase.from(table).delete().eq('id', id).select().maybeSingle()
+  const { data, error } = await supabase.from(table).delete().eq('id', id).select(columns as '*').maybeSingle()
   if (error || !data) {
-    await reconcileRowFromServer<T>(set, get, key, table, id, undefined)
-    const err = error ?? { message: 'Nenhuma linha foi afetada — o registro pode já ter sido excluído por outra sessão.' }
-    reportError(label, table, err)
-    return { ok: false, error: err.message }
+    const reconcile = await reconcileRowFromServer<T>(set, get, key, table, id, undefined, beforeDelete, columns)
+    const baseErr = error ? error.message : 'Nenhuma linha foi afetada — o registro pode já ter sido excluído por outra sessão.'
+    const finalErr = reconcile.confirmed ? baseErr : `${baseErr} ${reconcile.error}`
+    reportError(label, table, { message: finalErr })
+    return { ok: false, error: finalErr }
   }
   return { ok: true, data: null }
 }
@@ -669,8 +724,8 @@ export const useDataStore = create<DataState>()((set, get) => ({
     const user: User = { ...data, id: generateId('usr'), createdAt: todayIso() }
     return createRow(set, 'users', 'users', 'criar usuário', user)
   },
-  updateUser: (id, patch) => updateRow<User>(set, get, 'users', 'users', 'atualizar usuário', id, patch),
-  removeUser: (id) => removeRow<User>(set, get, 'users', 'users', 'excluir usuário', id),
+  updateUser: (id, patch) => updateRow<User>(set, get, 'users', 'users', 'atualizar usuário', id, patch, { columns: USER_SAFE_COLUMNS }),
+  removeUser: (id) => removeRow<User>(set, get, 'users', 'users', 'excluir usuário', id, { columns: USER_SAFE_COLUMNS }),
 
   addClient: async (data) => {
     const client: Client = { ...data, id: generateId('cli'), createdAt: todayIso() }
@@ -793,39 +848,86 @@ export const useDataStore = create<DataState>()((set, get) => ({
     }
     return result
   },
-  updateDeliveryPlanItem: (id, patch) => updateRow<DeliveryPlanItem>(set, get, 'deliveryPlanItems', 'delivery_plan_items', 'atualizar item contratado', id, patch),
+  updateDeliveryPlanItem: async (id, patch) => {
+    // Correção pós-revisão Codex (3º round, ponto 3B): reduzir
+    // monthlyQuantity não pode deixar mais unidades já existentes no
+    // período relevante do que a nova quantidade, silenciosamente. Não há
+    // como saber se a quantidade contratada era diferente em meses
+    // PASSADOS (monthly_quantity não é versionado por mês), então a
+    // checagem fica restrita ao MÊS CORRENTE — o único período em que
+    // "nova quantidade < unidades já existentes" é inequivocamente um
+    // conflito, sem precisar adivinhar histórico. Bloqueia com uma
+    // mensagem clara e preserva as unidades existentes intactas, em vez de
+    // apagar/ignorar qualquer coisa ou fingir que ficou tudo reconciliado.
+    if (patch.monthlyQuantity !== undefined) {
+      const month = todayIso().slice(0, 7)
+      const existingUnitsThisMonth = get().deliveryUnits.filter((u) => u.planItemId === id && u.month === month).length
+      if (patch.monthlyQuantity < existingUnitsThisMonth) {
+        const currentItem = get().deliveryPlanItems.find((p) => p.id === id)
+        const message = `Não é possível reduzir a quantidade mensal${currentItem ? ` de "${currentItem.label}"` : ''} para ${patch.monthlyQuantity}: já existem ${existingUnitsThisMonth} entrega(s) registrada(s) para o mês corrente (${month}). Ajuste ou remova manualmente as entregas existentes antes de reduzir a quantidade.`
+        window.alert(message)
+        return { ok: false, error: message }
+      }
+    }
+    return updateRow<DeliveryPlanItem>(set, get, 'deliveryPlanItems', 'delivery_plan_items', 'atualizar item contratado', id, patch)
+  },
   removeDeliveryPlanItem: async (id) => {
     // delivery_units.plan_item_id -> delivery_plan_items.id é ON DELETE
     // CASCADE no banco: excluir o item contratado já apaga as unidades dele
     // no servidor. A atualização otimista espelha isso localmente (remove
     // dos dois arrays de uma vez).
+    const previousItem = get().deliveryPlanItems.find((p) => p.id === id)
+    const previousUnits = get().deliveryUnits.filter((u) => u.planItemId === id)
     set((s) => ({
       deliveryPlanItems: s.deliveryPlanItems.filter((p) => p.id !== id),
       deliveryUnits: s.deliveryUnits.filter((u) => u.planItemId !== id),
     }))
     const { data, error } = await supabase.from('delivery_plan_items').delete().eq('id', id).select().maybeSingle()
     if (error || !data) {
-      // Confirma o estado real em vez de restaurar um snapshot antigo: o
-      // item pode ainda existir de fato (falha real) ou já ter sido
-      // removido por outra sessão. Se ainda existe, relê também as
-      // unidades dele — nunca restaura os dois arrays a partir de um
-      // valor capturado antes da tentativa.
-      const { data: freshItem } = await supabase.from('delivery_plan_items').select('*').eq('id', id).maybeSingle()
-      if (freshItem) {
-        const { data: freshUnits } = await supabase.from('delivery_units').select('*').eq('plan_item_id', id)
-        set((s) => {
-          if (s.deliveryPlanItems.some((p) => p.id === id)) return {} // já foi recolocado por outro motivo (ex: Realtime) -- não sobrescreve
-          const restoredItem = rowToEntity<DeliveryPlanItem>(freshItem)
+      // Confirma o estado real em vez de restaurar um snapshot antigo por
+      // padrão: o item pode ainda existir de fato (falha real) ou já ter
+      // sido removido por outra sessão. Correção pós-revisão Codex (3º
+      // round): se a PRÓPRIA releitura falhar, isso NUNCA é tratado como
+      // "confirmado excluído" — restaura o item e as unidades de antes da
+      // tentativa (último estado confirmado) em vez de deixar a exclusão
+      // "vencer" sem nenhuma confirmação real.
+      const itemRead = await readRowSafely<DeliveryPlanItem>('delivery_plan_items', id, '*')
+      let reconcileNote = ''
+      if (itemRead.kind === 'read_failed') {
+        reconcileNote = ` Não foi possível confirmar se a exclusão funcionou (${itemRead.error}). Recarregue para verificar.`
+        if (previousItem) {
+          set((s) => {
+            if (s.deliveryPlanItems.some((p) => p.id === id)) return {} // já foi recolocado por outro motivo (ex: Realtime) -- não sobrescreve
+            return {
+              deliveryPlanItems: [...s.deliveryPlanItems, previousItem],
+              deliveryUnits: [...s.deliveryUnits.filter((u) => u.planItemId !== id), ...previousUnits],
+            }
+          })
+        }
+      } else if (itemRead.kind === 'found') {
+        // Confirmado que o item ainda existe de fato -- relê também as
+        // unidades dele; nunca restaura os arrays a partir de um valor
+        // capturado antes da tentativa quando temos algo mais fresco.
+        const { data: freshUnits, error: unitsError } = await supabase.from('delivery_units').select('*').eq('plan_item_id', id)
+        if (unitsError) {
+          reconcileNote = ` O item continua existindo mas não foi possível reler as entregas dele (${unitsError.message}). Recarregue para verificar.`
+          set((s) => (s.deliveryPlanItems.some((p) => p.id === id) ? {} : { deliveryPlanItems: [...s.deliveryPlanItems, itemRead.row] }))
+        } else {
           const restoredUnits = (freshUnits ?? []).map((row) => rowToEntity<DeliveryUnit>(row))
-          return {
-            deliveryPlanItems: [...s.deliveryPlanItems, restoredItem],
-            deliveryUnits: [...s.deliveryUnits.filter((u) => u.planItemId !== id), ...restoredUnits],
-          }
-        })
+          set((s) => {
+            if (s.deliveryPlanItems.some((p) => p.id === id)) return {}
+            return {
+              deliveryPlanItems: [...s.deliveryPlanItems, itemRead.row],
+              deliveryUnits: [...s.deliveryUnits.filter((u) => u.planItemId !== id), ...restoredUnits],
+            }
+          })
+        }
       }
-      const err = error ?? { message: 'Nenhuma linha foi afetada — o item pode já ter sido excluído por outra sessão.' }
-      reportError('excluir item contratado', 'delivery_plan_items', err)
-      return { ok: false, error: err.message }
+      // 'absent': leitura confirmou que o item não existe mais -- a remoção otimista já é a verdade, nada a reconciliar.
+      const baseErr = error ? error.message : 'Nenhuma linha foi afetada — o item pode já ter sido excluído por outra sessão.'
+      const finalErr = baseErr + reconcileNote
+      reportError('excluir item contratado', 'delivery_plan_items', { message: finalErr })
+      return { ok: false, error: finalErr }
     }
     return { ok: true, data: null }
   },
@@ -841,6 +943,7 @@ export const useDataStore = create<DataState>()((set, get) => ({
   updateDashboardCard: (id, patch) => updateRow<DashboardCardDefinition>(set, get, 'dashboardCards', 'dashboard_cards', 'atualizar card', id, patch),
 
   updateAppSettings: async (patch) => {
+    const previousConfirmed = get().appSettings
     let optimisticRef: AppSettings | undefined
     set((s) => {
       optimisticRef = { ...s.appSettings, ...patch }
@@ -848,14 +951,28 @@ export const useDataStore = create<DataState>()((set, get) => ({
     })
     const { data, error } = await supabase.from('app_settings').update(entityToRow(patch)).eq('id', 1).select().maybeSingle()
     if (error || !data) {
-      const { data: fresh } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle()
+      const { data: fresh, error: readError } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle()
+      let reconcileNote = ''
       set((s) => {
         if (s.appSettings !== optimisticRef) return {} // já mudou por outro motivo desde a tentativa -- não sobrescreve
-        return { appSettings: fresh ? rowToEntity<AppSettings>(fresh) : FALLBACK_APP_SETTINGS }
+        if (readError) {
+          // Correção pós-revisão Codex (3º round): erro na releitura NUNCA
+          // significa "linha ausente" -- volta pro último estado
+          // CONFIRMADO (antes desta tentativa), nunca para o
+          // FALLBACK_APP_SETTINGS genérico, que apagaria configurações
+          // reais com base numa leitura que nem chegou a acontecer.
+          reconcileNote = ` Não foi possível confirmar o estado atual (${readError.message}). Recarregue para verificar.`
+          return { appSettings: previousConfirmed }
+        }
+        // app_settings é uma linha singleton (id=1); se a leitura confirmar
+        // mesmo assim que sumiu, o último valor confirmado ainda é mais
+        // seguro que um fallback genérico apagando personalização real.
+        return { appSettings: fresh ? rowToEntity<AppSettings>(fresh) : previousConfirmed }
       })
-      const err = error ?? { message: 'Nenhuma linha foi afetada.' }
-      reportError('atualizar configurações', 'app_settings', err)
-      return { ok: false, error: err.message }
+      const baseErr = error ? error.message : 'Nenhuma linha foi afetada.'
+      const finalErr = baseErr + reconcileNote
+      reportError('atualizar configurações', 'app_settings', { message: finalErr })
+      return { ok: false, error: finalErr }
     }
     const authoritative = rowToEntity<AppSettings>(data)
     set({ appSettings: authoritative })
