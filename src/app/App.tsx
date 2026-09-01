@@ -37,14 +37,23 @@ import { ApprovalsPage } from '@/features/creative/ApprovalsPage'
 
 export function App() {
   const authStatus = useAuthStore((s) => s.status)
+  // Reagir só a 'signed_in'/'signed_out' não basta: uma troca direta entre
+  // duas contas autenticadas (ex: relogar como outro usuário sem passar por
+  // /login "vazio" no meio) mantém `status` em 'signed_in' o tempo todo, e o
+  // efeito não dispararia de novo. `identityId` muda nesse caso, então é ele
+  // (e não só `authStatus`) que precisa estar nas dependências — é o que faz
+  // `initialize()` rodar de novo pra identidade nova (ver store.ts: ele
+  // mesmo detecta a troca e limpa os dados da identidade anterior antes de
+  // buscar os da nova).
+  const identityId = useAuthStore((s) => s.session?.user.id ?? null)
 
   // Dado privado só é buscado depois que a sessão Auth está resolvida E
   // autenticada; ao deslogar, o estado local é limpo por inteiro — nenhum
   // dado do usuário anterior deve sobreviver na memória/UI.
   useEffect(() => {
-    if (authStatus === 'signed_in') useDataStore.getState().initialize()
+    if (authStatus === 'signed_in' && identityId) useDataStore.getState().initialize(identityId)
     if (authStatus === 'signed_out') useDataStore.getState().reset()
-  }, [authStatus])
+  }, [authStatus, identityId])
 
   // 'loading' é só a resolução inicial da sessão (ou sua restauração após
   // recarregar a página) — não depende de nenhum dado privado, então não há

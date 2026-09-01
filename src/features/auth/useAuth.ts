@@ -56,12 +56,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
 
   logout: async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('[Supabase Auth] Falha ao encerrar sessão:', error)
+      window.alert(`Não foi possível encerrar a sessão corretamente. Detalhe: ${error.message}`)
+    }
   },
 
   logoutWithError: async (message) => {
     set({ lastError: message })
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) console.error('[Supabase Auth] Falha ao encerrar sessão (logoutWithError):', error)
   },
 
   clearLastError: () => set({ lastError: null }),

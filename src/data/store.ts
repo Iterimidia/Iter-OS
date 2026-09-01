@@ -105,7 +105,8 @@ interface DataState {
   dashboardCards: DashboardCardDefinition[]
   appSettings: AppSettings
 
-  initialize: () => Promise<void>
+  /** Carrega os dados da identidade autenticada atual (`session.user.id`) — ver src/app/App.tsx. */
+  initialize: (identityId: string) => Promise<void>
   /** Limpa todo o estado local e encerra os canais Realtime — chamado no logout, para nenhum dado do usuário anterior sobreviver na memória/UI. */
   reset: () => void
 
@@ -170,7 +171,19 @@ const FALLBACK_APP_SETTINGS: AppSettings = {
   integrations: [],
 }
 
-let realtimeSubscribed = false
+/**
+ * Liga o ciclo de dados à identidade da sessão atual, para a corrida
+ * descrita na correção pós-revisão Codex da Fase 3 não poder mais acontecer:
+ * `initialize()` de A em andamento -> A desloga/troca pra B -> `reset()` (ou
+ * a nova identidade) incrementa `generation` -> quando a promise antiga de A
+ * finalmente resolve, ela vê `generation` diferente da que capturou e
+ * descarta o resultado, em vez de repopular o store ou recriar subscriptions
+ * com dados de uma identidade que não é mais a atual. Cada subscription
+ * Realtime também carrega a `generation` de quando foi criada e se
+ * autodesliga (ignora o evento) se ela não bate mais com a atual.
+ */
+let generation = 0
+let currentIdentity: string | null = null
 
 /**
  * Ids de itens contratados cuja criação ainda não foi confirmada no Supabase.
@@ -182,16 +195,25 @@ export function isDeliveryPlanItemPending(id: string): boolean {
   return pendingPlanItemIds.has(id)
 }
 
-/** Assina mudanças de uma tabela-lista e mescla no array correspondente do estado, por id (idempotente: seguro mesmo se a própria action já tiver feito a atualização otimista). */
+/**
+ * Assina mudanças de uma tabela-lista e mescla no array correspondente do
+ * estado, por id (idempotente: seguro mesmo se a própria action já tiver
+ * feito a atualização otimista). `myGeneration` é a geração vigente no
+ * momento em que a subscription foi criada — se `generation` já mudou
+ * quando um evento chega (identidade trocou/deslogou nesse meio-tempo), o
+ * evento é ignorado em vez de escrever no store por cima da carga atual.
+ */
 function subscribeListTable<T extends { id: string }>(
   table: string,
   key: keyof DataState,
   set: (fn: (s: DataState) => Partial<DataState>) => void,
+  myGeneration: number,
   sanitizeRow?: (row: Record<string, unknown>) => Record<string, unknown>,
 ) {
   supabase
     .channel(`realtime:${table}`)
     .on('postgres_changes', { event: '*', schema: 'public', table }, (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      if (myGeneration !== generation) return
       set((s) => {
         const list = s[key] as unknown as T[]
         if (payload.eventType === 'INSERT') {
@@ -229,7 +251,36 @@ export const useDataStore = create<DataState>()((set, get) => ({
   dashboardCards: [],
   appSettings: FALLBACK_APP_SETTINGS,
 
-  initialize: async () => {
+  initialize: async (identityId) => {
+    // Identidade nova (primeira carga, ou troca A -> B sem passar por
+    // 'signed_out' no meio) -> invalida a geração anterior e limpa os dados
+    // da identidade antiga ANTES de buscar qualquer coisa nova, pra nenhuma
+    // informação de A ficar visível para B, nem por um instante. Chamada
+    // repetida pra MESMA identidade (ex: efeito re-executando) não repete
+    // esse passo, pra não derrubar subscriptions saudáveis à toa.
+    if (identityId !== currentIdentity) {
+      generation += 1
+      currentIdentity = identityId
+      supabase.removeAllChannels()
+      set({
+        initialized: false,
+        users: [],
+        clients: [],
+        projects: [],
+        tasks: [],
+        calendarEvents: [],
+        financialEntries: [],
+        leads: [],
+        contentItems: [],
+        files: [],
+        deliveryPlanItems: [],
+        deliveryUnits: [],
+        dashboardCards: [],
+        appSettings: FALLBACK_APP_SETTINGS,
+      })
+    }
+    const myGeneration = generation
+
     const [
       users,
       clients,
@@ -260,6 +311,12 @@ export const useDataStore = create<DataState>()((set, get) => ({
       fetchTable<AppSettings>('app_settings'),
     ])
 
+    // A geração mudou enquanto essas buscas corriam (logout, ou troca pra
+    // outra identidade, no meio do carregamento) -> este resultado é de uma
+    // identidade que não é mais a atual. Descarta em vez de aplicar: não
+    // repopula o store nem cria subscriptions por cima do que já foi limpo.
+    if (myGeneration !== generation) return
+
     set({
       users,
       clients,
@@ -277,25 +334,23 @@ export const useDataStore = create<DataState>()((set, get) => ({
       initialized: true,
     })
 
-    if (realtimeSubscribed) return
-    realtimeSubscribed = true
-
-    subscribeListTable<User>('users', 'users', set, stripPassword)
-    subscribeListTable<Client>('clients', 'clients', set)
-    subscribeListTable<Project>('projects', 'projects', set)
-    subscribeListTable<Task>('tasks', 'tasks', set)
-    subscribeListTable<CalendarEvent>('calendar_events', 'calendarEvents', set)
-    subscribeListTable<FinancialEntry>('financial_entries', 'financialEntries', set)
-    subscribeListTable<Lead>('leads', 'leads', set)
-    subscribeListTable<ContentItem>('content_items', 'contentItems', set)
-    subscribeListTable<FileResource>('files', 'files', set)
-    subscribeListTable<DeliveryPlanItem>('delivery_plan_items', 'deliveryPlanItems', set)
-    subscribeListTable<DeliveryUnit>('delivery_units', 'deliveryUnits', set)
-    subscribeListTable<DashboardCardDefinition>('dashboard_cards', 'dashboardCards', set)
+    subscribeListTable<User>('users', 'users', set, myGeneration, stripPassword)
+    subscribeListTable<Client>('clients', 'clients', set, myGeneration)
+    subscribeListTable<Project>('projects', 'projects', set, myGeneration)
+    subscribeListTable<Task>('tasks', 'tasks', set, myGeneration)
+    subscribeListTable<CalendarEvent>('calendar_events', 'calendarEvents', set, myGeneration)
+    subscribeListTable<FinancialEntry>('financial_entries', 'financialEntries', set, myGeneration)
+    subscribeListTable<Lead>('leads', 'leads', set, myGeneration)
+    subscribeListTable<ContentItem>('content_items', 'contentItems', set, myGeneration)
+    subscribeListTable<FileResource>('files', 'files', set, myGeneration)
+    subscribeListTable<DeliveryPlanItem>('delivery_plan_items', 'deliveryPlanItems', set, myGeneration)
+    subscribeListTable<DeliveryUnit>('delivery_units', 'deliveryUnits', set, myGeneration)
+    subscribeListTable<DashboardCardDefinition>('dashboard_cards', 'dashboardCards', set, myGeneration)
 
     supabase
       .channel('realtime:app_settings')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+        if (myGeneration !== generation) return
         set({ appSettings: rowToEntity<AppSettings>(payload.new) })
       })
       .subscribe()
@@ -700,8 +755,9 @@ export const useDataStore = create<DataState>()((set, get) => ({
   },
 
   reset: () => {
+    generation += 1
+    currentIdentity = null
     supabase.removeAllChannels()
-    realtimeSubscribed = false
     set({
       initialized: false,
       users: [],
