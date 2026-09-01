@@ -155,6 +155,30 @@ check "operacional VÊ calendar_events (scope=operacional, base dele)" "1" "$(co
 check "financeiro NÃO vê calendar_event de scope=criativo (sem base criativo)" "0" "$(count "$FIN" 'calendar_events?select=id&id=eq.seed_event_criativo_only')"
 check "admin VÊ calendar_event de scope=criativo" "1" "$(count "$ADMIN" 'calendar_events?select=id&id=eq.seed_event_criativo_only')"
 
+echo
+echo "== Correção B3 (2ª rodada) — granularidade de área completa =="
+echo "-- financeiro tem a BASE operacional mas não a ÁREA de projetos/operação --"
+# financeiro (role_default_areas: geral:calendario, geral:dashboard,
+# operacional:clientes, operacional:financeiro) tem a base operacional mas
+# nunca teve, por default de role nem por override, as áreas
+# operacional:projetos / operacional:operacao. Antes desta correção, as
+# policies de projects/tasks só verificavam a BASE — isso é exatamente o
+# buraco que B3 fecha: ter a base não deve bastar.
+check "financeiro NÃO vê projects (falta área operacional:projetos)" "0" "$(count "$FIN" 'projects?select=id')"
+check "financeiro NÃO vê task operacional (falta área operacional:operacao)" "0" "$(count "$FIN" 'tasks?select=id&id=eq.seed_task_a1')"
+echo "-- admin/operacional continuam vendo normalmente (sem regressão) --"
+check "admin VÊ projects" "2" "$(count "$ADMIN" 'projects?select=id')"
+check "operacional (tem operacional:projetos por default de role) VÊ projects" "2" "$(count "$OPER" 'projects?select=id')"
+check "operacional (tem operacional:operacao) VÊ task operacional" "1" "$(count "$OPER" 'tasks?select=id&id=eq.seed_task_a1')"
+echo "-- NOTA: os 2 testes de 'base sem a área específica' para"
+echo "   calendar_events (financeiro sem operacional:calendario) e"
+echo "   content_items (base criativo sem criativo:conteudo/demandas) exigem"
+echo "   mutação temporária de allowed_areas/allowed_bases via SQL com"
+echo "   privilégio elevado (não disponível para este script, que"
+echo "   deliberadamente usa só a anon key). Foram verificados manualmente"
+echo "   nesta rodada de correção (ver relatório) e devem ser repetidos à"
+echo "   mão sempre que a granularidade de área destas duas tabelas mudar."
+
 echo "-- B4b: coluna password não é exposta pela API a usuário autenticado --"
 # O Postgres exige privilégio de SELECT em TODAS as colunas para expandir
 # `*` — como `password` não tem mais GRANT, select=* passa a ser negado por
