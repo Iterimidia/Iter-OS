@@ -91,6 +91,18 @@ function stripPassword(row: Record<string, unknown>): Record<string, unknown> {
 
 interface DataState {
   initialized: boolean
+  /**
+   * Identidade (`session.user.id`) DONA dos dados atualmente carregados —
+   * só é setado depois que `initialize(identityId)` termina validamente
+   * pra aquela geração (nunca antes, nunca por uma carga já invalidada).
+   * `reset()` zera na hora. É contra ISSO, não contra `initialized`, que a
+   * árvore privada deve comparar `session.user.id`: entre a sessão virar B
+   * e o efeito que chama `initialize(B)` rodar, `initialized` ainda pode
+   * estar `true` com dados de A — `loadedIdentityId` continua sendo A até
+   * a carga de B terminar de verdade, e é essa divergência que barra o
+   * render da árvore privada nesse intervalo (ver src/app/guards.tsx).
+   */
+  loadedIdentityId: string | null
   users: User[]
   clients: Client[]
   projects: Project[]
@@ -237,6 +249,7 @@ function subscribeListTable<T extends { id: string }>(
 
 export const useDataStore = create<DataState>()((set, get) => ({
   initialized: false,
+  loadedIdentityId: null,
   users: [],
   clients: [],
   projects: [],
@@ -264,6 +277,7 @@ export const useDataStore = create<DataState>()((set, get) => ({
       supabase.removeAllChannels()
       set({
         initialized: false,
+        loadedIdentityId: null,
         users: [],
         clients: [],
         projects: [],
@@ -332,6 +346,11 @@ export const useDataStore = create<DataState>()((set, get) => ({
       dashboardCards,
       appSettings: appSettingsRows[0] ?? FALLBACK_APP_SETTINGS,
       initialized: true,
+      // Só agora, com a geração ainda válida confirmada acima, os dados
+      // passam a pertencer de fato a `identityId` — antes disso (inclusive
+      // durante o(s) render(s) entre a sessão virar `identityId` e este
+      // `set` rodar), `loadedIdentityId` continua sendo o dono anterior.
+      loadedIdentityId: identityId,
     })
 
     subscribeListTable<User>('users', 'users', set, myGeneration, stripPassword)
@@ -760,6 +779,7 @@ export const useDataStore = create<DataState>()((set, get) => ({
     supabase.removeAllChannels()
     set({
       initialized: false,
+      loadedIdentityId: null,
       users: [],
       clients: [],
       projects: [],

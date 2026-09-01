@@ -17,20 +17,36 @@ import { LoadingScreen } from '@/app/LoadingScreen'
  * `user` fica null mesmo autenticado — nesse caso encerra a sessão e manda
  * pro login com uma mensagem, em vez de deixar a pessoa presa numa tela em
  * branco.
+ *
+ * `dataReady` é o gate explícito entre a identidade da SESSÃO
+ * (`session.user.id`) e a identidade DONA dos dados carregados
+ * (`useDataStore.loadedIdentityId`) — não basta `initialized === true`.
+ * Numa troca direta A -> B, existe pelo menos um render entre a sessão virar
+ * B e o `useEffect` de App.tsx chamar `initialize(B)`; nesse render,
+ * `initialized` ainda pode estar `true` com os dados de A, e `useCurrentUser`
+ * poderia até encontrar a própria linha de B dentro do array carregado por A
+ * (ex: A é admin e já tinha carregado todo mundo). `loadedIdentityId`
+ * continua sendo A até `initialize(B)` terminar de fato — é essa
+ * divergência (`loadedIdentityId !== session.user.id`) que barra o render
+ * da árvore privada nesse intervalo, sem depender de nenhum efeito rodar
+ * antes.
  */
 export function RequireAuth() {
   const status = useAuthStore((s) => s.status)
-  const initialized = useDataStore((s) => s.initialized)
+  const identityId = useAuthStore((s) => s.session?.user.id ?? null)
+  const loadedIdentityId = useDataStore((s) => s.loadedIdentityId)
   const user = useCurrentUser()
 
+  const dataReady = status === 'signed_in' && identityId !== null && loadedIdentityId === identityId
+
   useEffect(() => {
-    if (status === 'signed_in' && initialized && !user) {
+    if (dataReady && !user) {
       useAuthStore.getState().logoutWithError('Sua conta está inativa ou sem perfil liberado no sistema. Fale com o administrador.')
     }
-  }, [status, initialized, user])
+  }, [dataReady, user])
 
   if (status === 'signed_out') return <Navigate to="/login" replace />
-  if (status === 'signed_in' && (!initialized || !user)) return <LoadingScreen />
+  if (!dataReady) return <LoadingScreen />
   return <Outlet />
 }
 
