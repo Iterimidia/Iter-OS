@@ -1,47 +1,81 @@
 /**
- * Autenticação mock — valida e-mail/senha contra os usuários do data store e
- * guarda apenas o id do usuário logado. Trocar por Supabase Auth depois:
- * `login` vira `supabase.auth.signInWithPassword`, e `currentUserId` vira a
- * sessão retornada por `supabase.auth.getSession` / `onAuthStateChange`.
+ * Autenticação real via Supabase Auth (Fase 3).
+ *
+ * `status` reflete a sessão do GoTrue: começa em 'loading' até o cliente
+ * resolver (ou restaurar do localStorage) a sessão existente, depois vira
+ * 'signed_in' ou 'signed_out'. `login` só cuida do Auth em si (credenciais
+ * válidas); se a conta está `active` e tem perfil em `public.users` é
+ * decidido só depois, em src/app/guards.tsx (RequireAuth), quando o
+ * restante dos dados já carregou — é a RLS da Fase 2 quem de fato barra um
+ * usuário inativo (não devolve nem a própria linha), e `useCurrentUser`
+ * só encontra, no array de `users` de `useDataStore`, a linha cujo
+ * `auth_user_id` bate com o usuário da sessão atual.
  */
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import type { Session } from '@supabase/supabase-js'
 import type { User } from '@/types'
 import { useDataStore } from '@/data/store'
+import { supabase } from '@/lib/supabaseClient'
 
 export type LoginResult = { ok: true } | { ok: false; error: string }
+type AuthStatus = 'loading' | 'signed_in' | 'signed_out'
 
 interface AuthState {
-  currentUserId: string | null
-  login: (email: string, password: string) => LoginResult
-  logout: () => void
+  status: AuthStatus
+  session: Session | null
+  /** Mensagem de erro para exibir na próxima renderização do login (ex: sessão encerrada por perfil inválido). */
+  lastError: string | null
+  login: (email: string, password: string) => Promise<LoginResult>
+  logout: () => Promise<void>
+  logoutWithError: (message: string) => Promise<void>
+  clearLastError: () => void
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      currentUserId: null,
-      login: (email, password) => {
-        const users = useDataStore.getState().users
-        const user = users.find((u) => u.email.trim().toLowerCase() === email.trim().toLowerCase())
+export const useAuthStore = create<AuthState>()((set) => ({
+  status: 'loading',
+  session: null,
+  lastError: null,
 
-        if (!user) return { ok: false, error: 'E-mail não encontrado.' }
-        if (!user.active) return { ok: false, error: 'Usuário inativo. Fale com o administrador.' }
-        if (user.password !== password) return { ok: false, error: 'Senha incorreta.' }
+  login: async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      if (error || !data.session) {
+        if (error?.status === 429) return { ok: false, error: 'Muitas tentativas de login. Aguarde um instante e tente novamente.' }
+        return { ok: false, error: 'E-mail ou senha inválidos.' }
+      }
+      // Login no Auth não sabe nada sobre `active` nem sobre o perfil interno
+      // existir de fato — checar isso aqui rodaria em paralelo com
+      // onAuthStateChange (que já dispara pro 'signed_in' assim que o token
+      // sai, antes desta função sequer terminar) e disputaria a mesma
+      // decisão com a RequireAuth. Deixa só a RequireAuth cuidar disso, depois
+      // que os dados carregam — um único lugar decide, sem corrida.
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Não foi possível conectar. Verifique sua internet e tente novamente.' }
+    }
+  },
 
-        set({ currentUserId: user.id })
-        return { ok: true }
-      },
-      logout: () => set({ currentUserId: null }),
-    }),
-    {
-      name: 'iteros-auth',
-      storage: createJSONStorage(() => localStorage),
-    },
-  ),
-)
+  logout: async () => {
+    await supabase.auth.signOut()
+  },
+
+  logoutWithError: async (message) => {
+    set({ lastError: message })
+    await supabase.auth.signOut()
+  },
+
+  clearLastError: () => set({ lastError: null }),
+}))
+
+// `onAuthStateChange` dispara imediatamente com a sessão atual ao inscrever
+// (evento INITIAL_SESSION do supabase-js v2) — cobre tanto a resolução
+// inicial quanto a restauração de sessão após recarregar a página, sem
+// precisar de uma chamada separada a getSession().
+supabase.auth.onAuthStateChange((_event, session) => {
+  useAuthStore.setState({ session, status: session ? 'signed_in' : 'signed_out' })
+})
 
 export function useCurrentUser(): User | null {
-  const currentUserId = useAuthStore((s) => s.currentUserId)
-  return useDataStore((s) => s.users.find((u) => u.id === currentUserId) ?? null)
+  const session = useAuthStore((s) => s.session)
+  return useDataStore((s) => (session ? (s.users.find((u) => u.authUserId === session.user.id) ?? null) : null))
 }

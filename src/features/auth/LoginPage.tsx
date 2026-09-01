@@ -1,10 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, BarChart3, Briefcase, Compass, Eye, EyeOff, Lock, Mail, Sparkles, TriangleAlert } from 'lucide-react'
 import { useAuthStore } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
-import { getHomePathForUser } from '@/lib/permissions'
 import { GradientBackdrop } from '@/components/ui/GradientBackdrop'
 import { Logo } from '@/components/layout/Logo'
 import { Button } from '@/components/ui/Button'
@@ -19,7 +18,10 @@ const PILLARS = [
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const status = useAuthStore((s) => s.status)
   const login = useAuthStore((s) => s.login)
+  const lastError = useAuthStore((s) => s.lastError)
+  const clearLastError = useAuthStore((s) => s.clearLastError)
   const appSettings = useDataStore((s) => s.appSettings)
 
   const [email, setEmail] = useState('')
@@ -28,22 +30,29 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e: FormEvent) {
+  // Sessão encerrada em outro lugar (ex: RequireAuth detectou perfil inválido/
+  // inativo) chega aqui como lastError — mostra uma vez só e limpa.
+  useEffect(() => {
+    if (lastError) {
+      setError(lastError)
+      clearLastError()
+    }
+  }, [lastError, clearLastError])
+
+  // A navegação para dentro do app não acontece no submit — só quando o
+  // status global realmente vira 'signed_in' (evita corrida entre o
+  // `await login(...)` resolver e o listener de auth atualizar o estado).
+  useEffect(() => {
+    if (status === 'signed_in') navigate('/', { replace: true })
+  }, [status, navigate])
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)
-
-    // pequeno atraso artificial só para a transição não parecer instantânea/crua
-    window.setTimeout(() => {
-      const result = login(email, password)
-      if (!result.ok) {
-        setError(result.error)
-        setLoading(false)
-        return
-      }
-      const user = useDataStore.getState().users.find((u) => u.email.trim().toLowerCase() === email.trim().toLowerCase())
-      navigate(user ? getHomePathForUser(user) : '/selecionar-base', { replace: true })
-    }, 350)
+    const result = await login(email, password)
+    if (!result.ok) setError(result.error)
+    setLoading(false)
   }
 
   return (

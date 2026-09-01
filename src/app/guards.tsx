@@ -1,14 +1,36 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import type { BaseId } from '@/types'
-import { useCurrentUser } from '@/features/auth/useAuth'
+import { useAuthStore, useCurrentUser } from '@/features/auth/useAuth'
+import { useDataStore } from '@/data/store'
 import { canAccessBase, canViewArea, getBaseHomePath, getHomePathForUser } from '@/lib/permissions'
 import { AREAS } from '@/lib/navigation'
 import { AppShell } from '@/components/layout/AppShell'
+import { LoadingScreen } from '@/app/LoadingScreen'
 
-/** Bloqueia tudo que exige sessão. */
+/**
+ * Bloqueia tudo que exige sessão. `status` já veio resolvido de App.tsx
+ * (nunca é 'loading' aqui) — o que falta cobrir é: sem sessão -> /login;
+ * com sessão mas dados/perfil ainda carregando -> loading; com sessão mas
+ * SEM perfil interno válido (auth_user_id sem linha, ou active=false) ->
+ * a RLS já devolve zero linhas em `users` pra esse caso (Fase 2, B4a), então
+ * `user` fica null mesmo autenticado — nesse caso encerra a sessão e manda
+ * pro login com uma mensagem, em vez de deixar a pessoa presa numa tela em
+ * branco.
+ */
 export function RequireAuth() {
+  const status = useAuthStore((s) => s.status)
+  const initialized = useDataStore((s) => s.initialized)
   const user = useCurrentUser()
-  if (!user) return <Navigate to="/login" replace />
+
+  useEffect(() => {
+    if (status === 'signed_in' && initialized && !user) {
+      useAuthStore.getState().logoutWithError('Sua conta está inativa ou sem perfil liberado no sistema. Fale com o administrador.')
+    }
+  }, [status, initialized, user])
+
+  if (status === 'signed_out') return <Navigate to="/login" replace />
+  if (status === 'signed_in' && (!initialized || !user)) return <LoadingScreen />
   return <Outlet />
 }
 

@@ -85,7 +85,7 @@ export function ProjectsPage() {
               <p className="mt-1 text-xs text-iter-faint">{clientName(p.clientId)}</p>
               <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-iter-muted">{p.description}</p>
               <div className="mt-3 flex items-center justify-between text-[11px] text-iter-faint">
-                <span>Prazo: {formatDate(p.endDate)}</span>
+                <span>Prazo: {p.endDate ? formatDate(p.endDate) : '—'}</span>
                 <Badge tone={PRIORITY_META[p.priority].tone}>{PRIORITY_META[p.priority].label}</Badge>
               </div>
             </div>

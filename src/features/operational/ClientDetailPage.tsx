@@ -197,7 +197,7 @@ export function ClientDetailPage() {
                   <Badge tone={PROJECT_STATUS_META[p.status].tone}>{PROJECT_STATUS_META[p.status].label}</Badge>
                 </div>
                 <p className="mt-1.5 text-xs text-iter-muted">{p.description}</p>
-                <p className="mt-2 text-[11px] text-iter-faint">Prazo final: {formatDate(p.endDate)}</p>
+                <p className="mt-2 text-[11px] text-iter-faint">Prazo final: {p.endDate ? formatDate(p.endDate) : '—'}</p>
               </div>
             ))}
           </div>

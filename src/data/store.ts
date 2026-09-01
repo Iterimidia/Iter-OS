@@ -68,6 +68,27 @@ async function fetchTable<T>(table: string): Promise<T[]> {
   return (data ?? []).map((row) => rowToEntity<T>(row as Record<string, unknown>))
 }
 
+/**
+ * `users.password` (coluna legada) não tem mais GRANT de SELECT para
+ * `authenticated` (Fase 2, B4b) — um `select('*')` nessa tabela é negado por
+ * inteiro pelo Postgres, não "quase tudo menos password". Por isso `users` é
+ * sempre buscada com a lista explícita de colunas seguras abaixo.
+ */
+const USER_SAFE_COLUMNS =
+  'id,name,email,role,job_title,avatar_initials,avatar_color,active,allowed_bases,allowed_areas,allowed_actions,allowed_client_ids,allowed_dashboard_cards,created_at,auth_user_id'
+
+async function fetchUsers(): Promise<User[]> {
+  const { data, error } = await supabase.from('users').select(USER_SAFE_COLUMNS)
+  if (reportError('carregar', 'users', error)) return []
+  return (data ?? []).map((row) => rowToEntity<User>(row as Record<string, unknown>))
+}
+
+/** Nunca deixa um `password` vindo de um payload Realtime entrar no estado do app. */
+function stripPassword(row: Record<string, unknown>): Record<string, unknown> {
+  const { password: _password, ...rest } = row
+  return rest
+}
+
 interface DataState {
   initialized: boolean
   users: User[]
@@ -85,6 +106,8 @@ interface DataState {
   appSettings: AppSettings
 
   initialize: () => Promise<void>
+  /** Limpa todo o estado local e encerra os canais Realtime — chamado no logout, para nenhum dado do usuário anterior sobreviver na memória/UI. */
+  reset: () => void
 
   addUser: (data: Omit<User, 'id' | 'createdAt'>) => User
   updateUser: (id: string, patch: Partial<User>) => void
@@ -164,6 +187,7 @@ function subscribeListTable<T extends { id: string }>(
   table: string,
   key: keyof DataState,
   set: (fn: (s: DataState) => Partial<DataState>) => void,
+  sanitizeRow?: (row: Record<string, unknown>) => Record<string, unknown>,
 ) {
   supabase
     .channel(`realtime:${table}`)
@@ -171,12 +195,12 @@ function subscribeListTable<T extends { id: string }>(
       set((s) => {
         const list = s[key] as unknown as T[]
         if (payload.eventType === 'INSERT') {
-          const item = rowToEntity<T>(payload.new)
+          const item = rowToEntity<T>(sanitizeRow ? sanitizeRow(payload.new) : payload.new)
           if (list.some((x) => x.id === item.id)) return {}
           return { [key]: [...list, item] } as Partial<DataState>
         }
         if (payload.eventType === 'UPDATE') {
-          const item = rowToEntity<T>(payload.new)
+          const item = rowToEntity<T>(sanitizeRow ? sanitizeRow(payload.new) : payload.new)
           return { [key]: list.map((x) => (x.id === item.id ? item : x)) } as Partial<DataState>
         }
         if (payload.eventType === 'DELETE') {
@@ -221,7 +245,7 @@ export const useDataStore = create<DataState>()((set, get) => ({
       dashboardCards,
       appSettingsRows,
     ] = await Promise.all([
-      fetchTable<User>('users'),
+      fetchUsers(),
       fetchTable<Client>('clients'),
       fetchTable<Project>('projects'),
       fetchTable<Task>('tasks'),
@@ -256,7 +280,7 @@ export const useDataStore = create<DataState>()((set, get) => ({
     if (realtimeSubscribed) return
     realtimeSubscribed = true
 
-    subscribeListTable<User>('users', 'users', set)
+    subscribeListTable<User>('users', 'users', set, stripPassword)
     subscribeListTable<Client>('clients', 'clients', set)
     subscribeListTable<Project>('projects', 'projects', set)
     subscribeListTable<Task>('tasks', 'tasks', set)
@@ -673,5 +697,26 @@ export const useDataStore = create<DataState>()((set, get) => ({
       .update(entityToRow(patch))
       .eq('id', 1)
       .then(({ error }) => reportError('atualizar configurações', 'app_settings', error))
+  },
+
+  reset: () => {
+    supabase.removeAllChannels()
+    realtimeSubscribed = false
+    set({
+      initialized: false,
+      users: [],
+      clients: [],
+      projects: [],
+      tasks: [],
+      calendarEvents: [],
+      financialEntries: [],
+      leads: [],
+      contentItems: [],
+      files: [],
+      deliveryPlanItems: [],
+      deliveryUnits: [],
+      dashboardCards: [],
+      appSettings: FALLBACK_APP_SETTINGS,
+    })
   },
 }))

@@ -125,7 +125,7 @@ export function PrintableReport({ report }: { report: ReportDefinition }) {
               p.title,
               clients.find((c) => c.id === p.clientId)?.name ?? '—',
               PROJECT_STATUS_META[p.status].label,
-              formatDate(p.endDate),
+              p.endDate ? formatDate(p.endDate) : '—',
             ])}
           />
         </PrintSection>

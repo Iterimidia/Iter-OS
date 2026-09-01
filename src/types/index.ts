@@ -41,7 +41,8 @@ export interface User {
   id: string
   name: string
   email: string
-  password: string // mock — trocar por Supabase Auth (hash + sessão real)
+  /** Legado — a API nunca mais retorna esta coluna em SELECT (Fase 2, B4b). Só existe ao criar/editar um usuário pelo formulário interno. */
+  password?: string
   role: RoleId
   jobTitle: string
   avatarInitials: string
@@ -53,6 +54,8 @@ export interface User {
   allowedClientIds: AccessList
   allowedDashboardCards: AccessList
   createdAt: string
+  /** Vínculo com o usuário do Supabase Auth (auth.users.id). Null enquanto não linkado. */
+  authUserId: string | null
 }
 
 export interface AppArea {

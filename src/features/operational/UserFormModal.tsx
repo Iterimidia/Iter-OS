@@ -106,7 +106,11 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
     const payload = {
       name: form.name,
       email: form.email,
-      password: form.password || user?.password || '',
+      // A API nunca retorna `password` (Fase 2, B4b) — se o campo ficou em
+      // branco ao editar, não manda a chave, pra não sobrescrever a senha
+      // legada existente com vazio. Criar usuário sempre exige senha (guard
+      // acima), então esse spread nunca fica de fora nesse caso.
+      ...(form.password.trim() ? { password: form.password } : {}),
       role: form.role,
       jobTitle: form.jobTitle,
       avatarInitials: getInitials(form.name),
@@ -117,6 +121,9 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
       allowedActions: form.allowedActions,
       allowedClientIds: form.allowedClientIds,
       allowedDashboardCards: user?.allowedDashboardCards ?? ('all' as const),
+      // Vínculo com Supabase Auth é feito à parte (fora deste formulário);
+      // um usuário novo nasce sem sessão de Auth associada.
+      authUserId: user?.authUserId ?? null,
     }
 
     if (user) updateUser(user.id, payload)

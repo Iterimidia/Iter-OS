@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { useAuthStore } from '@/features/auth/useAuth'
 import { BaseSelectPage } from '@/features/base-select/BaseSelectPage'
 import { NoAccessPage } from '@/app/NoAccessPage'
 import { RequireArea, RequireAuth, RequireBase, RootRedirect, BaseIndexRedirect } from '@/app/guards'
@@ -35,13 +36,20 @@ import { CreativeFilesPage } from '@/features/creative/CreativeFilesPage'
 import { ApprovalsPage } from '@/features/creative/ApprovalsPage'
 
 export function App() {
-  const initialized = useDataStore((s) => s.initialized)
+  const authStatus = useAuthStore((s) => s.status)
 
+  // Dado privado só é buscado depois que a sessão Auth está resolvida E
+  // autenticada; ao deslogar, o estado local é limpo por inteiro — nenhum
+  // dado do usuário anterior deve sobreviver na memória/UI.
   useEffect(() => {
-    useDataStore.getState().initialize()
-  }, [])
+    if (authStatus === 'signed_in') useDataStore.getState().initialize()
+    if (authStatus === 'signed_out') useDataStore.getState().reset()
+  }, [authStatus])
 
-  if (!initialized) return <LoadingScreen />
+  // 'loading' é só a resolução inicial da sessão (ou sua restauração após
+  // recarregar a página) — não depende de nenhum dado privado, então não há
+  // flash de conteúdo protegido aqui, só a tela de carregamento.
+  if (authStatus === 'loading') return <LoadingScreen />
 
   return (
     <Routes>

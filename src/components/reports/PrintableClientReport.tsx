@@ -58,7 +58,7 @@ export function PrintableClientReport({ clientId }: { clientId: string }) {
       <PrintSection title="Projetos Vinculados">
         <PrintTable
           headers={['Projeto', 'Status', 'Prazo final']}
-          rows={projects.map((p) => [p.title, PROJECT_STATUS_META[p.status].label, formatDate(p.endDate)])}
+          rows={projects.map((p) => [p.title, PROJECT_STATUS_META[p.status].label, p.endDate ? formatDate(p.endDate) : '—'])}
         />
       </PrintSection>
 
