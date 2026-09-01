@@ -47,7 +47,7 @@ export function TaskFormModal({ open, onClose, defaultArea = 'operacional', task
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task, open])
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.title.trim() || !form.responsibleId) return
     const payload = {
@@ -62,12 +62,8 @@ export function TaskFormModal({ open, onClose, defaultArea = 'operacional', task
       type: form.type || 'Geral',
       area: form.area,
     }
-    if (task) {
-      updateTask(task.id, payload)
-    } else {
-      addTask(payload)
-    }
-    onClose()
+    const result = task ? await updateTask(task.id, payload) : await addTask(payload)
+    if (result.ok) onClose()
   }
 
   return (

@@ -33,7 +33,7 @@ export function MeetingFormModal({ open, onClose, defaultDate, event }: MeetingF
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, open])
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.title.trim() || !form.date) return
     const payload = {
@@ -41,12 +41,8 @@ export function MeetingFormModal({ open, onClose, defaultDate, event }: MeetingF
       date: form.date,
       clientId: form.clientId || undefined,
     }
-    if (event) {
-      updateCalendarEvent(event.id, payload)
-    } else {
-      addCalendarEvent({ ...payload, type: 'reuniao', scope: 'operacional' })
-    }
-    onClose()
+    const result = event ? await updateCalendarEvent(event.id, payload) : await addCalendarEvent({ ...payload, type: 'reuniao', scope: 'operacional' })
+    if (result.ok) onClose()
   }
 
   return (

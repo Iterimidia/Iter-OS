@@ -32,17 +32,13 @@ export function DeliveryPlanItemFormModal({ open, onClose, clientId, item }: Del
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, open])
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     const quantity = Number(form.monthlyQuantity)
     if (!form.label.trim() || !quantity || quantity < 1) return
     const payload = { label: form.label.trim(), monthlyQuantity: Math.round(quantity) }
-    if (item) {
-      updateDeliveryPlanItem(item.id, payload)
-    } else {
-      addDeliveryPlanItem({ ...payload, clientId })
-    }
-    onClose()
+    const result = item ? await updateDeliveryPlanItem(item.id, payload) : await addDeliveryPlanItem({ ...payload, clientId })
+    if (result.ok) onClose()
   }
 
   return (

@@ -50,15 +50,11 @@ export function ProjectFormModal({ open, onClose, project }: ProjectFormModalPro
     }))
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.title.trim() || !form.clientId || !form.responsibleId || !form.startDate || !form.endDate) return
-    if (project) {
-      updateProject(project.id, form)
-    } else {
-      addProject(form)
-    }
-    onClose()
+    const result = project ? await updateProject(project.id, form) : await addProject(form)
+    if (result.ok) onClose()
   }
 
   return (

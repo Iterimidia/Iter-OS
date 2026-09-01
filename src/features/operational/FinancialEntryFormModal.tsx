@@ -41,7 +41,7 @@ export function FinancialEntryFormModal({ open, onClose, type, entry }: Financia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry, open])
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.description.trim() || !form.dueDate) return
     const payload = {
@@ -55,12 +55,8 @@ export function FinancialEntryFormModal({ open, onClose, type, entry }: Financia
       recurring: form.recurring,
       paidDate: form.status === 'pago' ? (entry?.paidDate ?? new Date().toISOString().slice(0, 10)) : undefined,
     }
-    if (entry) {
-      updateFinancialEntry(entry.id, payload)
-    } else {
-      addFinancialEntry(payload)
-    }
-    onClose()
+    const result = entry ? await updateFinancialEntry(entry.id, payload) : await addFinancialEntry(payload)
+    if (result.ok) onClose()
   }
 
   return (

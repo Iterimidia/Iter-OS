@@ -178,7 +178,55 @@ async function createRow<T extends { id: string }>(
   return { ok: true, data: item }
 }
 
-/** Atualiza otimisticamente; se o `update` falhar, restaura o valor anterior daquele item (rollback real, não só um aviso). */
+/**
+ * Relê uma linha específica do banco (fonte autoritativa) e reconcilia só
+ * ESSA linha no array local — nunca o array inteiro. Usado quando um
+ * update/delete falha (ou não afeta a linha esperada): em vez de restaurar
+ * um snapshot local capturado antes da tentativa (que pode já estar
+ * obsoleto — uma edição concorrente válida, ou um evento Realtime, pode
+ * ter mudado a linha nesse meio-tempo), relê o estado real.
+ *
+ * `expectedRef` é a referência que NÓS MESMOS colocamos no array pela
+ * atualização otimista (o objeto já com o patch aplicado, pra update; ou
+ * `undefined`, pra delete — já que a otimista removeu a linha). Se, no
+ * momento em que a reconciliação resolve, o que está no array pra esse id
+ * NÃO é mais essa mesma referência, é porque outra coisa (Realtime, outra
+ * chamada) já escreveu por cima nesse meio-tempo — nesse caso não
+ * sobrescreve: o estado atual já é mais novo que o que estamos prestes a
+ * aplicar, e é exatamente isso que evita um rollback defasado apagar uma
+ * mudança concorrente válida.
+ */
+async function reconcileRowFromServer<T extends { id: string }>(
+  set: SetFn,
+  get: GetFn,
+  key: ListKey,
+  table: string,
+  id: string,
+  expectedRef: T | undefined,
+) {
+  const { data: fresh } = await supabase.from(table).select('*').eq('id', id).maybeSingle()
+  set((s) => {
+    const list = getList<T>(s, key)
+    const current = list.find((x) => x.id === id)
+    if (current !== expectedRef) return {} // já mudou por outro motivo desde que a reconciliação começou — não sobrescreve
+    if (fresh) {
+      const authoritative = rowToEntity<T>(fresh)
+      return { [key]: current ? list.map((x) => (x.id === id ? authoritative : x)) : [...list, authoritative] } as Partial<DataState>
+    }
+    return { [key]: list.filter((x) => x.id !== id) } as Partial<DataState> // a linha não existe mais de fato no banco
+  })
+}
+
+/**
+ * Atualiza otimisticamente; confirma que a linha foi REALMENTE afetada
+ * (`.select().maybeSingle()` depois do update — ausência de `error` não
+ * basta, o PostgREST não erra quando o `.eq('id', id)` não bate com
+ * nenhuma linha, só devolve 0 resultados) e só então considera sucesso. Em
+ * falha (erro real ou zero linhas afetadas), não restaura cegamente o
+ * snapshot local anterior — relê a linha do banco (fonte autoritativa),
+ * pra uma edição concorrente válida ou um evento Realtime não serem
+ * apagados por um rollback defasado.
+ */
 async function updateRow<T extends { id: string }>(
   set: SetFn,
   get: GetFn,
@@ -189,18 +237,35 @@ async function updateRow<T extends { id: string }>(
   patch: Partial<T>,
   opts: { silent?: boolean } = {},
 ): Promise<MutationResult<T>> {
-  const previous = getList<T>(get(), key).find((x) => x.id === id)
-  set((s) => ({ [key]: getList<T>(s, key).map((x) => (x.id === id ? { ...x, ...patch } : x)) }) as Partial<DataState>)
-  const { error } = await supabase.from(table).update(entityToRow(patch)).eq('id', id)
-  if (error) {
-    if (previous) set((s) => ({ [key]: getList<T>(s, key).map((x) => (x.id === id ? previous : x)) }) as Partial<DataState>)
-    reportError(label, table, error, opts)
-    return { ok: false, error: error.message }
+  let optimisticRef: T | undefined
+  set((s) => ({
+    [key]: getList<T>(s, key).map((x) => {
+      if (x.id !== id) return x
+      optimisticRef = { ...x, ...patch } as T
+      return optimisticRef
+    }),
+  }) as Partial<DataState>)
+  const { data, error } = await supabase.from(table).update(entityToRow(patch)).eq('id', id).select().maybeSingle()
+  if (error || !data) {
+    await reconcileRowFromServer<T>(set, get, key, table, id, optimisticRef)
+    const err = error ?? { message: 'Nenhuma linha foi afetada — o registro pode ter sido excluído ou alterado por outra sessão.' }
+    reportError(label, table, err, opts)
+    return { ok: false, error: err.message }
   }
-  return { ok: true, data: (previous ? { ...previous, ...patch } : patch) as T }
+  const authoritative = rowToEntity<T>(data)
+  set((s) => ({ [key]: getList<T>(s, key).map((x) => (x.id === id ? authoritative : x)) }) as Partial<DataState>)
+  return { ok: true, data: authoritative }
 }
 
-/** Remove otimisticamente; se o `delete` falhar (ex: FK bloqueando), restaura a lista inteira — o registro não pode sumir da tela e continuar no banco. */
+/**
+ * Remove otimisticamente; confirma que uma linha foi REALMENTE excluída
+ * (mesma lógica do `updateRow`: `.select().maybeSingle()` depois do
+ * delete — zero linhas afetadas sem `error` conta como falha). Em falha,
+ * não restaura a lista inteira antiga (que pode já ter mudado por outra
+ * ação/Realtime enquanto isso corria) — relê só essa linha do banco e
+ * reconcilia apenas ela (`expectedRef: undefined` porque a otimista já
+ * removeu a linha; se algo já a recolocou lá — ex: Realtime — não mexe).
+ */
 async function removeRow<T extends { id: string }>(
   set: SetFn,
   get: GetFn,
@@ -209,13 +274,13 @@ async function removeRow<T extends { id: string }>(
   label: string,
   id: string,
 ): Promise<MutationResult<null>> {
-  const previous = getList<T>(get(), key)
   set((s) => ({ [key]: getList<T>(s, key).filter((x) => x.id !== id) }) as Partial<DataState>)
-  const { error } = await supabase.from(table).delete().eq('id', id)
-  if (error) {
-    set(() => ({ [key]: previous }) as Partial<DataState>)
-    reportError(label, table, error)
-    return { ok: false, error: error.message }
+  const { data, error } = await supabase.from(table).delete().eq('id', id).select().maybeSingle()
+  if (error || !data) {
+    await reconcileRowFromServer<T>(set, get, key, table, id, undefined)
+    const err = error ?? { message: 'Nenhuma linha foi afetada — o registro pode já ter sido excluído por outra sessão.' }
+    reportError(label, table, err)
+    return { ok: false, error: err.message }
   }
   return { ok: true, data: null }
 }
@@ -306,6 +371,15 @@ interface DataState {
   addDeliveryUnit: (data: Omit<DeliveryUnit, 'id' | 'createdAt'>) => Promise<MutationResult<DeliveryUnit>>
   updateDeliveryUnit: (id: string, patch: Partial<DeliveryUnit>) => Promise<MutationResult<DeliveryUnit>>
   removeDeliveryUnit: (id: string) => Promise<MutationResult<null>>
+  /**
+   * Garante que existem exatamente `monthlyQuantity` unidades pro
+   * (planItemId, month) dado — idempotente no servidor (upsert com
+   * UNIQUE(plan_item_id,month,unit_index) + ON CONFLICT DO NOTHING), então
+   * chamar duas vezes (simultâneo ou repetido) nunca cria unidades a mais.
+   * Usada tanto na criação de um item contratado quanto na tela de
+   * Entregas (DeliveriesPage) pra completar o mês corrente.
+   */
+  reconcileDeliveryUnits: (planItemId: string, clientId: string, month: string, monthlyQuantity: number) => Promise<MutationResult<DeliveryUnit[]>>
 
   updateDashboardCard: (id: string, patch: Partial<DashboardCardDefinition>) => Promise<MutationResult<DashboardCardDefinition>>
 
@@ -346,6 +420,83 @@ let currentIdentity: string | null = null
 const pendingPlanItemIds = new Set<string>()
 export function isDeliveryPlanItemPending(id: string): boolean {
   return pendingPlanItemIds.has(id)
+}
+
+/**
+ * Reconciliação idempotente de delivery_units (correção pós-revisão Codex,
+ * Fase 4): duas chamadas simultâneas/repetidas pra "garanta que existem N
+ * unidades pro plano X no mês Y" não podem, juntas, criar mais do que N.
+ *
+ * A idempotência de verdade é da constraint UNIQUE (plan_item_id, month,
+ * unit_index) no banco (migration
+ * 20260901190000_delivery_units_idempotent_reconciliation.sql) + upsert com
+ * `ON CONFLICT DO NOTHING`: tentar criar "a unidade Nº 2 do plano X em
+ * setembro" duas vezes ao mesmo tempo, de duas abas, dois usuários ou dois
+ * retries, sempre resulta em NO MÁXIMO uma linha — a segunda tentativa é
+ * simplesmente ignorada pelo Postgres, não é uma corrida "quem chega
+ * primeiro no client". Isso vale mesmo que o guard local abaixo (o `Map`)
+ * falhe por qualquer motivo — duas abas são dois processos JS diferentes,
+ * sem como um enxergar o `Map` do outro.
+ *
+ * O `Map` guarda a PROMISE em voo (não só um booleano) por
+ * (planItemId, month): uma segunda chamada concorrente pro MESMO plano+mês,
+ * dentro do MESMO processo (ex: DeliveriesPage e addDeliveryPlanItem
+ * disputando o mesmo plano recém-criado), espera o resultado real da
+ * primeira em vez de (a) disparar outra tentativa à toa ou (b) desistir
+ * cedo com uma resposta vazia que poderia ser mal interpretada como
+ * "faltou completar".
+ */
+const reconcilingDeliveryUnits = new Map<string, Promise<MutationResult<DeliveryUnit[]>>>()
+
+function reconcileDeliveryUnitsInternal(
+  set: SetFn,
+  get: GetFn,
+  planItemId: string,
+  clientId: string,
+  month: string,
+  monthlyQuantity: number,
+): Promise<MutationResult<DeliveryUnit[]>> {
+  const guardKey = `${planItemId}:${month}`
+  const currentUnits = get().deliveryUnits.filter((u) => u.planItemId === planItemId && u.month === month)
+  if (currentUnits.length >= monthlyQuantity) return Promise.resolve({ ok: true, data: currentUnits })
+
+  const inFlight = reconcilingDeliveryUnits.get(guardKey)
+  if (inFlight) return inFlight
+
+  const attempt = (async (): Promise<MutationResult<DeliveryUnit[]>> => {
+    const rows = Array.from({ length: monthlyQuantity }, (_, i) => ({
+      id: generateId('dunit'),
+      plan_item_id: planItemId,
+      client_id: clientId,
+      month,
+      unit_index: i + 1,
+      status: 'pendente' as const,
+      created_at: todayIso(),
+    }))
+    const { error: upsertError } = await supabase
+      .from('delivery_units')
+      .upsert(rows, { onConflict: 'plan_item_id,month,unit_index', ignoreDuplicates: true })
+    if (upsertError) {
+      reportError('reconciliar entregas do mês', 'delivery_units', upsertError)
+      return { ok: false, error: upsertError.message }
+    }
+    // A verdade agora é o banco (não importa se fomos nós, uma aba
+    // concorrente ou um retry quem efetivamente inseriu cada linha) — relê
+    // exatamente esse plano+mês e substitui no store, nem mais nem menos
+    // do que existe de fato.
+    const { data: freshUnits, error: selectError } = await supabase.from('delivery_units').select('*').eq('plan_item_id', planItemId).eq('month', month)
+    if (selectError) {
+      reportError('reconciliar entregas do mês', 'delivery_units', selectError)
+      return { ok: false, error: selectError.message }
+    }
+    const authoritative = (freshUnits ?? []).map((row) => rowToEntity<DeliveryUnit>(row))
+    set((s) => ({ deliveryUnits: [...s.deliveryUnits.filter((u) => !(u.planItemId === planItemId && u.month === month)), ...authoritative] }))
+    return { ok: true, data: authoritative }
+  })()
+
+  reconcilingDeliveryUnits.set(guardKey, attempt)
+  void attempt.finally(() => reconcilingDeliveryUnits.delete(guardKey))
+  return attempt
 }
 
 /**
@@ -623,30 +774,21 @@ export const useDataStore = create<DataState>()((set, get) => ({
       return result
     }
 
-    // Cria de uma vez as unidades do mês corrente — item já existe de fato
-    // no banco (acima), então não arrisca a foreign key
-    // delivery_units.plan_item_id. As N criações rodam em paralelo e são
-    // aguardadas juntas (Promise.all): se alguma falhar isoladamente (rede
-    // instável), o item contratado continua válido — o que faltar é
-    // relatado numa única mensagem clara, em vez de silenciosamente ficar
-    // faltando ou disparar um alert por unidade. A tela de Entregas
-    // (DeliveriesPage) já reconcilia sozinha qualquer unidade que ainda
-    // esteja faltando pro mês corrente da próxima vez que renderizar —
-    // essa reconciliação idempotente já cobre a garantia de "sem estado
-    // parcial" aqui sem precisar de uma função SQL/transação dedicada.
+    // Garante as unidades do mês corrente — item já existe de fato no
+    // banco (acima), então não arrisca a foreign key
+    // delivery_units.plan_item_id. Usa a mesma reconciliação idempotente
+    // da tela de Entregas (upsert com UNIQUE(plan_item_id,month,unit_index)
+    // + ON CONFLICT DO NOTHING no servidor): se DeliveriesPage também
+    // tentar reconciliar esse mesmo plano+mês ao mesmo tempo (ex: a tela já
+    // está aberta quando o item é criado), as duas tentativas convergem
+    // pro mesmo resultado sem duplicar nada.
     const month = todayIso().slice(0, 7)
-    const unitResults = await Promise.all(
-      Array.from({ length: item.monthlyQuantity }, () => {
-        const unit: DeliveryUnit = { id: generateId('dunit'), planItemId: item.id, clientId: item.clientId, month, status: 'pendente', createdAt: todayIso() }
-        return createRow(set, 'deliveryUnits', 'delivery_units', 'criar entrega', unit, { silent: true })
-      }),
-    )
+    const unitsResult = await reconcileDeliveryUnitsInternal(set, get, item.id, item.clientId, month, item.monthlyQuantity)
     pendingPlanItemIds.delete(item.id)
 
-    const failedUnits = unitResults.filter((r) => !r.ok).length
-    if (failedUnits > 0) {
+    if (!unitsResult.ok || unitsResult.data.length < item.monthlyQuantity) {
       window.alert(
-        `Item contratado "${item.label}" criado, mas ${failedUnits} de ${item.monthlyQuantity} entrega(s) deste mês não puderam ser registradas agora. A tela de Entregas completa automaticamente o que faltar ao ser aberta.`,
+        `Item contratado "${item.label}" criado, mas nem todas as entregas deste mês puderam ser registradas agora. A tela de Entregas completa automaticamente o que faltar ao ser aberta.`,
       )
     }
     return result
@@ -656,19 +798,34 @@ export const useDataStore = create<DataState>()((set, get) => ({
     // delivery_units.plan_item_id -> delivery_plan_items.id é ON DELETE
     // CASCADE no banco: excluir o item contratado já apaga as unidades dele
     // no servidor. A atualização otimista espelha isso localmente (remove
-    // dos dois arrays de uma vez) e, se o delete falhar, restaura os dois —
-    // nunca só um dos dois lados.
-    const previousItems = get().deliveryPlanItems
-    const previousUnits = get().deliveryUnits
+    // dos dois arrays de uma vez).
     set((s) => ({
       deliveryPlanItems: s.deliveryPlanItems.filter((p) => p.id !== id),
       deliveryUnits: s.deliveryUnits.filter((u) => u.planItemId !== id),
     }))
-    const { error } = await supabase.from('delivery_plan_items').delete().eq('id', id)
-    if (error) {
-      set({ deliveryPlanItems: previousItems, deliveryUnits: previousUnits })
-      reportError('excluir item contratado', 'delivery_plan_items', error)
-      return { ok: false, error: error.message }
+    const { data, error } = await supabase.from('delivery_plan_items').delete().eq('id', id).select().maybeSingle()
+    if (error || !data) {
+      // Confirma o estado real em vez de restaurar um snapshot antigo: o
+      // item pode ainda existir de fato (falha real) ou já ter sido
+      // removido por outra sessão. Se ainda existe, relê também as
+      // unidades dele — nunca restaura os dois arrays a partir de um
+      // valor capturado antes da tentativa.
+      const { data: freshItem } = await supabase.from('delivery_plan_items').select('*').eq('id', id).maybeSingle()
+      if (freshItem) {
+        const { data: freshUnits } = await supabase.from('delivery_units').select('*').eq('plan_item_id', id)
+        set((s) => {
+          if (s.deliveryPlanItems.some((p) => p.id === id)) return {} // já foi recolocado por outro motivo (ex: Realtime) -- não sobrescreve
+          const restoredItem = rowToEntity<DeliveryPlanItem>(freshItem)
+          const restoredUnits = (freshUnits ?? []).map((row) => rowToEntity<DeliveryUnit>(row))
+          return {
+            deliveryPlanItems: [...s.deliveryPlanItems, restoredItem],
+            deliveryUnits: [...s.deliveryUnits.filter((u) => u.planItemId !== id), ...restoredUnits],
+          }
+        })
+      }
+      const err = error ?? { message: 'Nenhuma linha foi afetada — o item pode já ter sido excluído por outra sessão.' }
+      reportError('excluir item contratado', 'delivery_plan_items', err)
+      return { ok: false, error: err.message }
     }
     return { ok: true, data: null }
   },
@@ -679,19 +836,30 @@ export const useDataStore = create<DataState>()((set, get) => ({
   },
   updateDeliveryUnit: (id, patch) => updateRow<DeliveryUnit>(set, get, 'deliveryUnits', 'delivery_units', 'atualizar entrega', id, patch),
   removeDeliveryUnit: (id) => removeRow<DeliveryUnit>(set, get, 'deliveryUnits', 'delivery_units', 'excluir entrega', id),
+  reconcileDeliveryUnits: (planItemId, clientId, month, monthlyQuantity) => reconcileDeliveryUnitsInternal(set, get, planItemId, clientId, month, monthlyQuantity),
 
   updateDashboardCard: (id, patch) => updateRow<DashboardCardDefinition>(set, get, 'dashboardCards', 'dashboard_cards', 'atualizar card', id, patch),
 
   updateAppSettings: async (patch) => {
-    const previous = get().appSettings
-    set((s) => ({ appSettings: { ...s.appSettings, ...patch } }))
-    const { error } = await supabase.from('app_settings').update(entityToRow(patch)).eq('id', 1)
-    if (error) {
-      set({ appSettings: previous })
-      reportError('atualizar configurações', 'app_settings', error)
-      return { ok: false, error: error.message }
+    let optimisticRef: AppSettings | undefined
+    set((s) => {
+      optimisticRef = { ...s.appSettings, ...patch }
+      return { appSettings: optimisticRef }
+    })
+    const { data, error } = await supabase.from('app_settings').update(entityToRow(patch)).eq('id', 1).select().maybeSingle()
+    if (error || !data) {
+      const { data: fresh } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle()
+      set((s) => {
+        if (s.appSettings !== optimisticRef) return {} // já mudou por outro motivo desde a tentativa -- não sobrescreve
+        return { appSettings: fresh ? rowToEntity<AppSettings>(fresh) : FALLBACK_APP_SETTINGS }
+      })
+      const err = error ?? { message: 'Nenhuma linha foi afetada.' }
+      reportError('atualizar configurações', 'app_settings', err)
+      return { ok: false, error: err.message }
     }
-    return { ok: true, data: { ...previous, ...patch } }
+    const authoritative = rowToEntity<AppSettings>(data)
+    set({ appSettings: authoritative })
+    return { ok: true, data: authoritative }
   },
 
   reset: () => {

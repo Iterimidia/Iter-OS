@@ -282,6 +282,8 @@ export interface DeliveryUnit {
   clientId: string
   /** Mês de referência no formato 'YYYY-MM'. */
   month: string
+  /** Posição determinística (1..monthlyQuantity) dentro de (planItemId, month) — UNIQUE no banco, é o que torna a reconciliação de entregas do mês idempotente (upsert com ON CONFLICT DO NOTHING), mesmo com tentativas simultâneas/repetidas. */
+  unitIndex: number
   status: DeliveryUnitStatus
   createdAt: string
 }

@@ -29,10 +29,15 @@ export function SettingsPage() {
     return <EmptyState icon={ShieldAlert} title="Sem permissão" description="Fale com um administrador para alterar as configurações." />
   }
 
-  function saveGeneral() {
-    updateAppSettings({ companyName, loginSlogan, dashboardSlogan })
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 2000)
+  async function saveGeneral() {
+    // "Salvo!" só aparece depois que o Supabase confirmou — antes disso o
+    // botão mostra "Salvar alterações" normalmente; em falha, o alert (da
+    // própria action) já avisa e o texto do botão não muda pra "Salvo!".
+    const result = await updateAppSettings({ companyName, loginSlogan, dashboardSlogan })
+    if (result.ok) {
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2000)
+    }
   }
 
   return (

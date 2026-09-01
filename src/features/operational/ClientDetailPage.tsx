@@ -65,10 +65,14 @@ export function ClientDetailPage() {
   const canExportClient = canExport(user, mockReports.find((r) => r.id === 'rep_cliente')!)
   const canSeeFinance = canPerformAction(user, 'ver_financeiro')
 
-  function handleDelete() {
+  async function handleDelete() {
     if (window.confirm(`Excluir "${clientNameSafe}"? Isso não apaga projetos, tarefas ou lançamentos já vinculados a ele.`)) {
-      removeClient(clientIdSafe)
-      navigate('/operacional/clientes')
+      // Só sai da tela do cliente se a exclusão realmente confirmou — em
+      // falha (ex: cliente ainda tem entregas contratadas vinculadas), o
+      // alert já avisa e a pessoa continua vendo o cliente (que a rollback
+      // já garante que continua existindo).
+      const result = await removeClient(clientIdSafe)
+      if (result.ok) navigate('/operacional/clientes')
     }
   }
 

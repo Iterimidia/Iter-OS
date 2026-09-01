@@ -23,7 +23,7 @@ export function DeliveriesPage() {
   const clients = useDataStore((s) => s.clients)
   const deliveryPlanItems = useDataStore((s) => s.deliveryPlanItems)
   const deliveryUnits = useDataStore((s) => s.deliveryUnits)
-  const addDeliveryUnit = useDataStore((s) => s.addDeliveryUnit)
+  const reconcileDeliveryUnits = useDataStore((s) => s.reconcileDeliveryUnits)
   const updateDeliveryUnit = useDataStore((s) => s.updateDeliveryUnit)
   const removeDeliveryPlanItem = useDataStore((s) => s.removeDeliveryPlanItem)
 
@@ -36,21 +36,20 @@ export function DeliveriesPage() {
 
   const accessibleClients = clients.filter((c) => canAccessClient(user, c.id))
 
-  // Gera as unidades do mês corrente pra cada item contratado, até a quantidade combinada.
-  // Idempotente: só cria a diferença que falta, então não duplica ao rodar de novo.
-  // Pula itens ainda pendentes de confirmação no Supabase (evita a foreign key
-  // delivery_units_plan_item_id_fkey: addDeliveryPlanItem já cuida desse caso
-  // sozinho depois que o item é confirmado).
+  // Garante as unidades do mês corrente pra cada item contratado, até a
+  // quantidade combinada. `reconcileDeliveryUnits` é idempotente no
+  // servidor (upsert com UNIQUE(plan_item_id,month,unit_index) + ON
+  // CONFLICT DO NOTHING) — rodar de novo, inclusive ao mesmo tempo em
+  // outra aba/sessão, nunca cria unidades a mais do que o contratado. Pula
+  // itens ainda pendentes de confirmação no Supabase (evita a foreign key
+  // delivery_units_plan_item_id_fkey: addDeliveryPlanItem já cuida desse
+  // caso sozinho depois que o item é confirmado).
   useEffect(() => {
     for (const item of deliveryPlanItems) {
       if (isDeliveryPlanItemPending(item.id)) continue
-      const existing = deliveryUnits.filter((u) => u.planItemId === item.id && u.month === month).length
-      const missing = item.monthlyQuantity - existing
-      for (let i = 0; i < missing; i++) {
-        addDeliveryUnit({ planItemId: item.id, clientId: item.clientId, month, status: 'pendente' })
-      }
+      reconcileDeliveryUnits(item.id, item.clientId, month, item.monthlyQuantity)
     }
-  }, [month, deliveryPlanItems, deliveryUnits, addDeliveryUnit])
+  }, [month, deliveryPlanItems, deliveryUnits, reconcileDeliveryUnits])
 
   function handleToggleUnit(unitId: string, status: DeliveryUnitStatus) {
     updateDeliveryUnit(unitId, { status: nextDeliveryUnitStatus(status) })
@@ -113,7 +112,7 @@ export function DeliveriesPage() {
                 ) : (
                   <div className="mt-4 space-y-3">
                     {items.map((item) => {
-                      const units = deliveryUnits.filter((u) => u.planItemId === item.id && u.month === month)
+                      const units = deliveryUnits.filter((u) => u.planItemId === item.id && u.month === month).sort((a, b) => a.unitIndex - b.unitIndex)
                       const delivered = units.filter((u) => u.status === 'entregue').length
                       const inProduction = units.filter((u) => u.status === 'em_producao').length
                       const pending = units.length - delivered - inProduction

@@ -44,7 +44,7 @@ export function ContentFormModal({ open, onClose, item }: ContentFormModalProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, open])
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.title.trim() || !form.clientId || !form.responsibleId) return
     const payload = {
@@ -60,12 +60,10 @@ export function ContentFormModal({ open, onClose, item }: ContentFormModalProps)
       script: form.script || undefined,
       fileUrl: form.fileUrl || undefined,
     }
-    if (item) {
-      updateContentItem(item.id, payload)
-    } else {
-      addContentItem({ ...payload, status: 'a_fazer', internalApproval: false, clientApproval: false })
-    }
-    onClose()
+    const result = item
+      ? await updateContentItem(item.id, payload)
+      : await addContentItem({ ...payload, status: 'a_fazer', internalApproval: false, clientApproval: false })
+    if (result.ok) onClose()
   }
 
   return (

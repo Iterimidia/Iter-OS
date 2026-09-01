@@ -57,7 +57,7 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
     }))
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) return
     const payload = {
@@ -65,12 +65,11 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
       monthlyValue: form.billingType === 'fixo' ? Number(form.monthlyValue) || 0 : 0,
       commissionPercentage: form.billingType === 'percentual' ? Number(form.commissionPercentage) || 0 : undefined,
     }
-    if (client) {
-      updateClient(client.id, payload)
-    } else {
-      addClient(payload)
-    }
-    onClose()
+    const result = client ? await updateClient(client.id, payload) : await addClient(payload)
+    // Só fecha se a persistência realmente confirmou — em falha, o alert
+    // (disparado pela própria action) já avisa, e o formulário continua
+    // aberto com os dados preenchidos, em vez de sumir como se tivesse dado certo.
+    if (result.ok) onClose()
   }
 
   return (

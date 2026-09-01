@@ -98,7 +98,7 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
     })
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.name.trim() || !form.email.trim()) return
     if (!user && !form.password.trim()) return
@@ -126,9 +126,8 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
       authUserId: user?.authUserId ?? null,
     }
 
-    if (user) updateUser(user.id, payload)
-    else addUser(payload)
-    onClose()
+    const result = user ? await updateUser(user.id, payload) : await addUser(payload)
+    if (result.ok) onClose()
   }
 
   return (

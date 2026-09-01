@@ -48,7 +48,7 @@ export function FileFormModal({ open, onClose, file }: FileFormModalProps) {
     }))
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.name.trim() || !form.url.trim()) return
     const payload = {
@@ -60,12 +60,8 @@ export function FileFormModal({ open, onClose, file }: FileFormModalProps) {
       description: form.description || undefined,
       visibleToRoles: form.visibleToRoles,
     }
-    if (file) {
-      updateFile(file.id, payload)
-    } else {
-      addFile(payload)
-    }
-    onClose()
+    const result = file ? await updateFile(file.id, payload) : await addFile(payload)
+    if (result.ok) onClose()
   }
 
   return (
