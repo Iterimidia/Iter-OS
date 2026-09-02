@@ -35,6 +35,8 @@ export function OperationPage() {
   const [responsibleFilter, setResponsibleFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all')
 
+  const canCreate = canPerformAction(user, 'criar')
+  const canEditTask = canPerformAction(user, 'editar')
   const canDelete = canPerformAction(user, 'excluir')
 
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name
@@ -72,9 +74,11 @@ export function OperationPage() {
         title="Operação"
         description="Tarefas gerais, prazos e aprovações da execução."
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
-            Nova tarefa
-          </Button>
+          canCreate && (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
+              Nova tarefa
+            </Button>
+          )
         }
       />
 
@@ -121,18 +125,21 @@ export function OperationPage() {
           getId={(t) => t.id}
           getStatus={(t) => t.status}
           onStatusChange={changeStatus}
+          canChangeStatus={canEditTask}
           renderCard={(task) => (
             <div className="card-surface space-y-2 p-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-xs font-semibold leading-snug text-iter-text">{task.title}</p>
                 <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    onClick={() => setEditingTask(task)}
-                    className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
-                    aria-label="Editar tarefa"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
+                  {canEditTask && (
+                    <button
+                      onClick={() => setEditingTask(task)}
+                      className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
+                      aria-label="Editar tarefa"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       onClick={() => handleDeleteTask(task)}
@@ -160,7 +167,7 @@ export function OperationPage() {
                   {formatDate(task.dueDate)}
                 </p>
               )}
-              <StatusSelect value={task.status} onChange={(status) => changeStatus(task, status)} options={STATUS_OPTIONS} />
+              <StatusSelect value={task.status} onChange={(status) => changeStatus(task, status)} disabled={!canEditTask} options={STATUS_OPTIONS} />
             </div>
           )}
         />
@@ -184,20 +191,22 @@ export function OperationPage() {
             {
               key: 'status',
               header: 'Status',
-              render: (t) => <StatusSelect value={t.status} onChange={(status) => changeStatus(t, status)} options={STATUS_OPTIONS} />,
+              render: (t) => <StatusSelect value={t.status} onChange={(status) => changeStatus(t, status)} disabled={!canEditTask} options={STATUS_OPTIONS} />,
             },
             {
               key: 'acoes',
               header: '',
               render: (t: Task) => (
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditingTask(t)}
-                    className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
-                    aria-label="Editar tarefa"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
+                  {canEditTask && (
+                    <button
+                      onClick={() => setEditingTask(t)}
+                      className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
+                      aria-label="Editar tarefa"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       onClick={() => handleDeleteTask(t)}

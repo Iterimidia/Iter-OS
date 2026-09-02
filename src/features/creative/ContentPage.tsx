@@ -32,6 +32,8 @@ export function ContentPage() {
 
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
+  const canCreate = canPerformAction(user, 'criar')
+  const canEditContent = canPerformAction(user, 'editar')
   const canApprove = canPerformAction(user, 'aprovar')
   const canDelete = canPerformAction(user, 'excluir')
 
@@ -53,9 +55,11 @@ export function ContentPage() {
         title="Conteúdo"
         description="Calendário editorial, ideias, roteiros, legendas e peças em produção."
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
-            Nova peça
-          </Button>
+          canCreate && (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
+              Nova peça
+            </Button>
+          )
         }
       />
 
@@ -82,10 +86,11 @@ export function ContentPage() {
               clientName={clientName(item.clientId)}
               responsibleName={userName(item.responsibleId)}
               canApprove={canApprove}
+              canChangeStatus={canEditContent}
               onStatusChange={(status) => updateContentItem(item.id, { status })}
               onToggleInternalApproval={() => updateContentItem(item.id, { internalApproval: !item.internalApproval })}
               onToggleClientApproval={() => updateContentItem(item.id, { clientApproval: !item.clientApproval })}
-              onEdit={() => setEditingItem(item)}
+              onEdit={canEditContent ? () => setEditingItem(item) : undefined}
               onDelete={canDelete ? () => handleDelete(item) : undefined}
             />
           ))}

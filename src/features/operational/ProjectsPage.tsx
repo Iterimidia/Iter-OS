@@ -22,6 +22,8 @@ export function ProjectsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
 
+  const canCreate = canPerformAction(user, 'criar')
+  const canEditProject = canPerformAction(user, 'editar')
   const canDelete = canPerformAction(user, 'excluir')
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name
 
@@ -43,9 +45,11 @@ export function ProjectsPage() {
         title="Projetos"
         description="Projetos vinculados a clientes — as tarefas podem apontar pra eles."
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
-            Novo projeto
-          </Button>
+          canCreate && (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
+              Novo projeto
+            </Button>
+          )
         }
       />
 
@@ -64,13 +68,15 @@ export function ProjectsPage() {
                 <p className="text-sm font-medium text-iter-text">{p.title}</p>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Badge tone={PROJECT_STATUS_META[p.status].tone}>{PROJECT_STATUS_META[p.status].label}</Badge>
-                  <button
-                    onClick={() => setEditingProject(p)}
-                    className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
-                    aria-label="Editar projeto"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
+                  {canEditProject && (
+                    <button
+                      onClick={() => setEditingProject(p)}
+                      className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
+                      aria-label="Editar projeto"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       onClick={() => handleDeleteProject(p)}

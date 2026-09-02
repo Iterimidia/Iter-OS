@@ -38,6 +38,19 @@ export function TeamPage() {
     }
   }
 
+  // Fase 5, prioridade 1: desativar a própria conta trava o admin fora do
+  // próprio sistema (as RLS de Fase 2 exigem active=true pro próprio
+  // usuário se reconhecer, inclusive como admin) — o botão já existente
+  // pra excluir a própria conta tem essa mesma trava, esta só espelha pro
+  // toggle de ativar/desativar.
+  function handleToggleActive(u: User) {
+    if (u.id === currentUser.id) {
+      window.alert('Você não pode desativar a própria conta enquanto estiver conectado com ela.')
+      return
+    }
+    updateUser(u.id, { active: !u.active })
+  }
+
   const workload = users.map((u) => {
     const userTasks = tasks.filter((t) => t.responsibleId === u.id)
     const abertas = userTasks.filter((t) => !['concluido', 'publicado'].includes(t.status))
@@ -98,8 +111,9 @@ export function TeamPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => updateUser(u.id, { active: !u.active })}
-                    title={u.active ? 'Desativar' : 'Ativar'}
+                    onClick={() => handleToggleActive(u)}
+                    disabled={u.id === currentUser.id}
+                    title={u.id === currentUser.id ? 'Você não pode desativar a própria conta' : u.active ? 'Desativar' : 'Ativar'}
                   >
                     <ShieldCheck className="h-4 w-4" />
                   </Button>

@@ -14,6 +14,8 @@ interface KanbanBoardProps<T, S extends string> {
   getId: (item: T) => string
   onStatusChange: (item: T, status: S) => void
   renderCard: (item: T) => ReactNode
+  /** Fase 5: quando o usuário não tem a ação que a mudança de status exige (ex: `editar`), desliga o drag em vez de deixar arrastar algo que a RLS vai recusar depois. Default true (comportamento anterior). */
+  canChangeStatus?: boolean
 }
 
 /** Kanban genérico: arrastar no desktop, mas cada card também expõe um StatusSelect (o dono do renderCard decide). */
@@ -24,6 +26,7 @@ export function KanbanBoard<T, S extends string>({
   getId,
   onStatusChange,
   renderCard,
+  canChangeStatus = true,
 }: KanbanBoardProps<T, S>) {
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<S | null>(null)
@@ -42,8 +45,10 @@ export function KanbanBoard<T, S extends string>({
             onDragLeave={() => setOverCol((c) => (c === col.id ? null : c))}
             onDrop={(e) => {
               e.preventDefault()
-              const item = items.find((i) => getId(i) === dragId)
-              if (item && getStatus(item) !== col.id) onStatusChange(item, col.id)
+              if (canChangeStatus) {
+                const item = items.find((i) => getId(i) === dragId)
+                if (item && getStatus(item) !== col.id) onStatusChange(item, col.id)
+              }
               setDragId(null)
               setOverCol(null)
             }}
@@ -60,13 +65,13 @@ export function KanbanBoard<T, S extends string>({
               {colItems.map((item) => (
                 <div
                   key={getId(item)}
-                  draggable
-                  onDragStart={() => setDragId(getId(item))}
+                  draggable={canChangeStatus}
+                  onDragStart={() => canChangeStatus && setDragId(getId(item))}
                   onDragEnd={() => {
                     setDragId(null)
                     setOverCol(null)
                   }}
-                  className="cursor-grab active:cursor-grabbing"
+                  className={canChangeStatus ? 'cursor-grab active:cursor-grabbing' : undefined}
                 >
                   {renderCard(item)}
                 </div>

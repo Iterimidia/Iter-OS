@@ -9,6 +9,8 @@ interface ContentCardProps {
   clientName?: string
   responsibleName?: string
   canApprove: boolean
+  /** Fase 5: mudar o status exige `editar` na RLS — desabilita o select em vez de deixar interagir com algo que será recusado depois. */
+  canChangeStatus?: boolean
   onStatusChange: (status: DemandStatus) => void
   onToggleInternalApproval: () => void
   onToggleClientApproval: () => void
@@ -21,6 +23,7 @@ export function ContentCard({
   clientName,
   responsibleName,
   canApprove,
+  canChangeStatus,
   onStatusChange,
   onToggleInternalApproval,
   onToggleClientApproval,
@@ -88,7 +91,12 @@ export function ContentCard({
       </div>
 
       <div className="mt-2.5">
-        <StatusSelect value={item.status} onChange={onStatusChange} options={DEMAND_STATUS_ORDER.map((s) => ({ value: s, label: DEMAND_STATUS_META[s].label }))} />
+        <StatusSelect
+          value={item.status}
+          onChange={onStatusChange}
+          disabled={canChangeStatus === false}
+          options={DEMAND_STATUS_ORDER.map((s) => ({ value: s, label: DEMAND_STATUS_META[s].label }))}
+        />
       </div>
     </div>
   )

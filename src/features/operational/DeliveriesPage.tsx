@@ -33,6 +33,7 @@ export function DeliveriesPage() {
 
   const canDelete = canPerformAction(user, 'excluir')
   const canCreate = canPerformAction(user, 'criar')
+  const canEditDelivery = canPerformAction(user, 'editar')
 
   const accessibleClients = clients.filter((c) => canAccessClient(user, c.id))
 
@@ -126,13 +127,15 @@ export function DeliveriesPage() {
                               <Badge tone="neutral">{item.monthlyQuantity}/mês</Badge>
                             </div>
                             <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => setEditingPlanItem(item)}
-                                className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
-                                aria-label="Editar item contratado"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
+                              {canEditDelivery && (
+                                <button
+                                  onClick={() => setEditingPlanItem(item)}
+                                  className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
+                                  aria-label="Editar item contratado"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                               {canDelete && (
                                 <button
                                   onClick={() => handleDeletePlanItem(item)}
@@ -149,9 +152,11 @@ export function DeliveriesPage() {
                               <button
                                 key={unit.id}
                                 onClick={() => handleToggleUnit(unit.id, unit.status)}
-                                title={DELIVERY_UNIT_STATUS_META[unit.status].label}
+                                disabled={!canEditDelivery}
+                                title={canEditDelivery ? DELIVERY_UNIT_STATUS_META[unit.status].label : `${DELIVERY_UNIT_STATUS_META[unit.status].label} (sem permissão para alterar)`}
                                 className={cn(
                                   'focus-ring flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] font-semibold transition-colors',
+                                  !canEditDelivery && 'cursor-not-allowed opacity-60',
                                   unit.status === 'pendente' && 'border-iter-border bg-iter-surface text-iter-faint',
                                   unit.status === 'em_producao' && 'border-iter-info/30 bg-iter-info/15 text-iter-info',
                                   unit.status === 'entregue' && 'border-iter-success/30 bg-iter-success/15 text-iter-success',

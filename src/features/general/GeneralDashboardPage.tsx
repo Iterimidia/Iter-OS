@@ -21,7 +21,7 @@ import {
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { useScopedCalendarEvents } from '@/lib/calendar'
-import { canViewDashboardCard } from '@/lib/permissions'
+import { canViewArea, canViewDashboardCard } from '@/lib/permissions'
 import { addDaysIso, formatCurrency, isOverdue, isThisMonth } from '@/lib/utils'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -113,9 +113,11 @@ export function GeneralDashboardPage() {
           <p className="text-xs font-medium uppercase tracking-wide text-iter-faint">Base Geral</p>
           <h1 className="mt-1 text-xl font-semibold text-iter-text sm:text-2xl">{appSettings.dashboardSlogan}</h1>
         </div>
-        <Button variant="secondary" icon={<FileBarChart2 className="h-4 w-4" />} onClick={() => navigate('/geral/relatorios')}>
-          Exportar relatório
-        </Button>
+        {canViewArea(user, 'geral:relatorios') && (
+          <Button variant="secondary" icon={<FileBarChart2 className="h-4 w-4" />} onClick={() => navigate('/geral/relatorios')}>
+            Exportar relatório
+          </Button>
+        )}
       </div>
 
       {showFinanceiro && (
@@ -247,9 +249,11 @@ export function GeneralDashboardPage() {
             title="Calendário"
             description="Próximos compromissos consolidados."
             action={
-              <Button variant="ghost" size="sm" onClick={() => navigate('/geral/calendario')}>
-                Ver calendário completo →
-              </Button>
+              canViewArea(user, 'geral:calendario') && (
+                <Button variant="ghost" size="sm" onClick={() => navigate('/geral/calendario')}>
+                  Ver calendário completo →
+                </Button>
+              )
             }
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

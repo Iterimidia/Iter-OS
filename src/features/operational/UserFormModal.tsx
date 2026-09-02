@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Lock } from 'lucide-react'
 import type { ActionPermission, BaseId, RoleId, User } from '@/types'
+import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { ROLES, ROLE_LIST } from '@/lib/permissions'
 import { AREAS, BASES } from '@/lib/navigation'
@@ -50,11 +51,18 @@ function toFormState(user?: User): UserFormState {
 }
 
 export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
+  const currentUser = useCurrentUser()
   const addUser = useDataStore((s) => s.addUser)
   const updateUser = useDataStore((s) => s.updateUser)
   const clients = useDataStore((s) => s.clients)
 
   const [form, setForm] = useState(() => toFormState(user))
+  // Fase 5, prioridade 1: este é um SEGUNDO caminho pra desativar a própria
+  // conta (o primeiro é o botão de toggle rápido em TeamPage.tsx, já
+  // travado) -- editar o próprio usuário e desligar "Usuário ativo" aqui
+  // trava o admin fora do sistema do mesmo jeito (RLS de Fase 2 exige
+  // active=true pro próprio usuário se reconhecer).
+  const isEditingSelf = !!user && user.id === currentUser?.id
 
   useEffect(() => {
     if (open) setForm(toFormState(user))
@@ -102,6 +110,10 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
     e.preventDefault()
     if (!form.name.trim() || !form.email.trim()) return
     if (!user && !form.password.trim()) return
+    if (isEditingSelf && !form.active) {
+      window.alert('Você não pode desativar a própria conta enquanto estiver conectado com ela.')
+      return
+    }
 
     const payload = {
       name: form.name,
@@ -168,8 +180,11 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
             />
           </div>
           <div className="flex items-end justify-between rounded-lg border border-iter-border px-3 py-2.5">
-            <span className="text-xs font-medium text-iter-muted">Usuário ativo</span>
-            <Switch checked={form.active} onChange={(active) => setForm({ ...form, active })} />
+            <span className="text-xs font-medium text-iter-muted">
+              Usuário ativo
+              {isEditingSelf && <span className="mt-0.5 block text-[10px] font-normal text-iter-faint">Você não pode desativar a própria conta</span>}
+            </span>
+            <Switch checked={form.active} onChange={(active) => setForm({ ...form, active })} disabled={isEditingSelf} />
           </div>
         </div>
 

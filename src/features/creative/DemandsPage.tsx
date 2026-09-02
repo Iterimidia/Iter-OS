@@ -25,6 +25,7 @@ export function DemandsPage() {
 
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
+  const canEditDemand = canPerformAction(user, 'editar')
   const canDelete = canPerformAction(user, 'excluir')
 
   function changeStatus(item: ContentItem, status: DemandStatus) {
@@ -46,6 +47,7 @@ export function DemandsPage() {
         getId={(i) => i.id}
         getStatus={(i) => i.status}
         onStatusChange={changeStatus}
+        canChangeStatus={canEditDemand}
         renderCard={(item) => (
           <div className="card-surface space-y-2 p-3">
             <div className="flex items-start justify-between gap-2">
@@ -66,7 +68,7 @@ export function DemandsPage() {
             </div>
             <p className="text-[11px] text-iter-muted">{userName(item.responsibleId)}</p>
             {item.dueDate && <p className="text-[11px] text-iter-faint">Prazo: {formatDate(item.dueDate)}</p>}
-            <StatusSelect value={item.status} onChange={(status) => changeStatus(item, status)} options={STATUS_OPTIONS} />
+            <StatusSelect value={item.status} onChange={(status) => changeStatus(item, status)} disabled={!canEditDemand} options={STATUS_OPTIONS} />
           </div>
         )}
       />

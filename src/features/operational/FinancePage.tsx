@@ -70,6 +70,8 @@ export function FinancePage() {
     .filter((c) => c.count > 0)
     .sort((a, b) => b.total - a.total)
 
+  const canCreate = canPerformAction(user, 'criar')
+  const canEditEntry = canPerformAction(user, 'editar')
   const canDelete = canPerformAction(user, 'excluir')
 
   function matchesFilters(f: FinancialEntry) {
@@ -80,7 +82,12 @@ export function FinancePage() {
 
   function statusColumn(entry: FinancialEntry) {
     return (
-      <StatusSelect value={entry.status} onChange={(status) => updateFinancialEntry(entry.id, { status })} options={STATUS_OPTIONS} />
+      <StatusSelect
+        value={entry.status}
+        onChange={(status) => updateFinancialEntry(entry.id, { status })}
+        disabled={!canEditEntry}
+        options={STATUS_OPTIONS}
+      />
     )
   }
 
@@ -93,13 +100,15 @@ export function FinancePage() {
   function actionsColumn(entry: FinancialEntry) {
     return (
       <div className="flex items-center gap-1">
-        <button
-          onClick={() => setEditingEntry(entry)}
-          className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
-          aria-label="Editar lançamento"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
+        {canEditEntry && (
+          <button
+            onClick={() => setEditingEntry(entry)}
+            className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
+            aria-label="Editar lançamento"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
         {canDelete && (
           <button onClick={() => handleDeleteEntry(entry)} className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-danger" aria-label="Excluir lançamento">
             <Trash2 className="h-4 w-4" />
@@ -176,11 +185,13 @@ export function FinancePage() {
 
       {tab === 'receitas' && (
         <>
-          <div className="mb-3 flex justify-end">
-            <Button size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setModalType('receita')}>
-              Nova receita
-            </Button>
-          </div>
+          {canCreate && (
+            <div className="mb-3 flex justify-end">
+              <Button size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setModalType('receita')}>
+                Nova receita
+              </Button>
+            </div>
+          )}
           <DataTable
             data={receitas.filter(matchesFilters)}
             keyField={(f) => f.id}
@@ -199,11 +210,13 @@ export function FinancePage() {
 
       {tab === 'despesas' && (
         <>
-          <div className="mb-3 flex justify-end">
-            <Button size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setModalType('despesa')}>
-              Nova despesa
-            </Button>
-          </div>
+          {canCreate && (
+            <div className="mb-3 flex justify-end">
+              <Button size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setModalType('despesa')}>
+                Nova despesa
+              </Button>
+            </div>
+          )}
           <DataTable
             data={despesas.filter(matchesFilters)}
             keyField={(f) => f.id}

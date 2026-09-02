@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Download, ExternalLink, Pencil, Trash2, TriangleAlert } from 'lucide-react'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
-import { canAccessClient, canEdit as canEditResource, canExport, canPerformAction } from '@/lib/permissions'
+import { canAccessClient, canEdit as canEditResource, canExport, canPerformAction, canViewFile } from '@/lib/permissions'
 import { mockReports } from '@/data/mockData'
 import {
   CLIENT_STATUS_META,
@@ -35,7 +35,7 @@ export function ClientDetailPage() {
   const tasks = useDataStore((s) => s.tasks.filter((t) => t.clientId === clientId))
   const contentItems = useDataStore((s) => s.contentItems.filter((c) => c.clientId === clientId))
   const financialEntries = useDataStore((s) => s.financialEntries.filter((f) => f.clientId === clientId))
-  const files = useDataStore((s) => s.files.filter((f) => f.clientId === clientId))
+  const files = useDataStore((s) => s.files.filter((f) => f.clientId === clientId && canViewFile(user, f)))
 
   const [tab, setTab] = useState('geral')
   const [editOpen, setEditOpen] = useState(false)

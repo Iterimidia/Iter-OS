@@ -49,6 +49,8 @@ export function CommercialPage() {
   const [form, setForm] = useState(() => toFormState(undefined))
   const [query, setQuery] = useState('')
 
+  const canCreate = canPerformAction(user, 'criar')
+  const canEditLead = canPerformAction(user, 'editar')
   const canDelete = canPerformAction(user, 'excluir')
   const modalIsOpen = modalOpen || editingLead !== null
 
@@ -120,9 +122,11 @@ export function CommercialPage() {
         title="Comercial"
         description="Funil comercial da Iter: leads, oportunidades, propostas e follow-ups."
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
-            Novo lead
-          </Button>
+          canCreate && (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
+              Novo lead
+            </Button>
+          )
         }
       />
 
@@ -151,11 +155,13 @@ export function CommercialPage() {
           getId={(l) => l.id}
           getStatus={(l) => l.status}
           onStatusChange={updateStatus}
+          canChangeStatus={canEditLead}
           renderCard={(lead) => (
             <LeadCard
               lead={lead}
               onStatusChange={(status) => updateStatus(lead, status)}
-              onEdit={() => setEditingLead(lead)}
+              canChangeStatus={canEditLead}
+              onEdit={canEditLead ? () => setEditingLead(lead) : undefined}
               onDelete={canDelete ? () => handleDeleteLead(lead) : undefined}
             />
           )}
@@ -192,13 +198,15 @@ export function CommercialPage() {
               header: '',
               render: (l: Lead) => (
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditingLead(l)}
-                    className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
-                    aria-label="Editar lead"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
+                  {canEditLead && (
+                    <button
+                      onClick={() => setEditingLead(l)}
+                      className="focus-ring rounded-md p-1 text-iter-faint hover:text-iter-text"
+                      aria-label="Editar lead"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       onClick={() => handleDeleteLead(l)}
@@ -314,11 +322,13 @@ export function CommercialPage() {
 function LeadCard({
   lead,
   onStatusChange,
+  canChangeStatus,
   onEdit,
   onDelete,
 }: {
   lead: Lead
   onStatusChange: (status: LeadStatus) => void
+  canChangeStatus?: boolean
   onEdit?: () => void
   onDelete?: () => void
 }) {
@@ -351,6 +361,7 @@ function LeadCard({
       <StatusSelect
         value={lead.status}
         onChange={onStatusChange}
+        disabled={canChangeStatus === false}
         options={LEAD_STATUS_ORDER.map((s) => ({ value: s, label: LEAD_STATUS_META[s].label }))}
       />
     </div>

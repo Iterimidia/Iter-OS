@@ -29,6 +29,7 @@ export function FilesBrowser({ title, description }: FilesBrowserProps) {
   const [editingFile, setEditingFile] = useState<FileResource | null>(null)
 
   const clientName = (id?: string) => clients.find((c) => c.id === id)?.name
+  const canEditFile = canPerformAction(user, 'editar')
   const canDelete = canPerformAction(user, 'excluir')
 
   const visible = files.filter((f) => canViewFile(user, f) && f.name.toLowerCase().includes(query.toLowerCase()))
@@ -92,13 +93,15 @@ export function FilesBrowser({ title, description }: FilesBrowserProps) {
                       {file.description && <p className="mt-1.5 line-clamp-2 text-xs text-iter-muted">{file.description}</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        onClick={(e) => handleEdit(e, file)}
-                        className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
-                        aria-label="Editar arquivo"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
+                      {canEditFile && (
+                        <button
+                          onClick={(e) => handleEdit(e, file)}
+                          className="focus-ring rounded-md p-0.5 text-iter-faint hover:text-iter-text"
+                          aria-label="Editar arquivo"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      )}
                       {canDelete && (
                         <button
                           onClick={(e) => handleDelete(e, file)}

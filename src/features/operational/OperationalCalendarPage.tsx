@@ -25,6 +25,8 @@ export function OperationalCalendarPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
 
+  const canCreate = canPerformAction(user, 'criar')
+  const canEditEvent = canPerformAction(user, 'editar')
   const canDelete = canPerformAction(user, 'excluir')
 
   const presentTypes = useMemo(() => EVENT_TYPE_ORDER.filter((t) => allEvents.some((e) => e.type === t)), [allEvents])
@@ -50,9 +52,11 @@ export function OperationalCalendarPage() {
         title="Calendário"
         description="Prazos de tarefas, entregas, vencimentos e reuniões da operação — tudo num só lugar."
         action={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
-            Nova reunião
-          </Button>
+          canCreate && (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
+              Nova reunião
+            </Button>
+          )
         }
       />
       <CalendarTypeFilter types={presentTypes} hidden={hidden} onToggle={toggleType} />
@@ -62,7 +66,7 @@ export function OperationalCalendarPage() {
           date={selectedDate}
           events={events}
           clients={clients}
-          onEditEvent={setEditingEvent}
+          onEditEvent={canEditEvent ? setEditingEvent : undefined}
           onDeleteEvent={canDelete ? handleDeleteEvent : undefined}
         />
       </div>
