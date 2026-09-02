@@ -635,13 +635,24 @@ export const useDataStore = create<DataState>()((set, get) => ({
     // repetida pra MESMA identidade (ex: efeito re-executando, ou um "tentar
     // de novo" depois de um loadError) não repete esse passo, pra não
     // derrubar subscriptions saudáveis à toa nem apagar dados já corretos.
+    //
+    // Correção pós-revisão Codex (5ª rodada): um "tentar de novo" pra MESMA
+    // identidade NÃO limpa `loadError` aqui no início. Fazer isso cedo abria
+    // uma janela real: `loadedIdentityId` continua igual a `identityId` (só a
+    // troca de identidade acima o zera), então, com `loadError` já nulo mas a
+    // carga nova ainda em voo, `RequireAuth` via `dataReady` como verdadeiro
+    // e liberava a árvore privada com o estado antigo/não confiável que
+    // motivou o loadError em primeiro lugar. `loadError` agora só é limpo no
+    // `set()` atômico de sucesso lá embaixo — enquanto isso, ele continua
+    // apontando pro erro anterior (ou é substituído por um novo, se esta
+    // tentativa falhar de novo), e `RequireAuth` permanece em
+    // `LoadErrorScreen` o tempo todo, nunca soltando a árvore privada antes
+    // de uma carga integralmente bem-sucedida.
     if (identityId !== currentIdentity) {
       generation += 1
       currentIdentity = identityId
       supabase.removeAllChannels()
       set({ initialized: false, loadedIdentityId: null, loadError: null, ...EMPTY_COLLECTIONS })
-    } else {
-      set(() => ({ loadError: null }))
     }
     const myGeneration = generation
 
