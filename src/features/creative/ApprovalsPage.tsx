@@ -19,7 +19,10 @@ export function ApprovalsPage() {
   const contentItems = useDataStore((s) => s.contentItems)
   const clients = useDataStore((s) => s.clients)
   const updateContentItem = useDataStore((s) => s.updateContentItem)
-  const canApprove = canPerformAction(user, 'aprovar')
+  // A RLS de content_items_update exige 'editar' (não 'aprovar') — como as duas
+  // ações são toggles independentes no cadastro do usuário, 'aprovar' sozinho
+  // não basta pra garantir que o UPDATE vai passar.
+  const canApprove = canPerformAction(user, 'aprovar') && canPerformAction(user, 'editar')
 
   const accessibleIds = new Set(getAccessibleClients(user, clients).map((c) => c.id))
   const items = contentItems.filter((c) => accessibleIds.has(c.clientId))
