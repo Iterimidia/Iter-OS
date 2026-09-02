@@ -20,6 +20,17 @@ npm run build     # build de produção em dist/
 npm run typecheck
 ```
 
+## Testes
+
+```bash
+npm test          # Vitest — unitários/integração, mocka o Supabase, roda em segundos
+npm run test:watch
+npm run test:e2e  # Playwright — contra o Iter OS Staging real, exige credenciais (ver .env.e2e.example)
+```
+
+- **Unitários/integração** (`src/**/*.test.ts(x)`): `src/lib/permissions.ts` (regras de acesso), `src/data/store.ts` (integridade de mutations, reconciliação de Delivery Units), `src/features/auth/useAuth.ts` e `src/app/guards.tsx` (login, sessão, bloqueio de conta inativa/sem perfil). Nunca tocam rede real — `@/lib/supabaseClient` é mockado (`src/test/supabaseMock.ts`).
+- **E2E** (`e2e/*.spec.ts`): fluxos completos em navegador contra o staging real. Precisa de `E2E_BASE_URL` + credenciais dos perfis de teste fictícios (`E2E_ADMIN_*`, `E2E_FINANCEIRO_*`, `E2E_INATIVO_*`) como variáveis de ambiente — nunca commitadas. Roda fora do CI de toda PR (ver `.github/workflows/e2e.yml`, disparo manual).
+
 ## Estrutura
 
 ```

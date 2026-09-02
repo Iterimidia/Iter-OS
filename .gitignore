@@ -5,10 +5,17 @@ dist-ssr
 .DS_Store
 .env
 .env.local
+.env.e2e
 *.tsbuildinfo
 .vscode/*
 !.vscode/extensions.json
 .netlify
+
+# Playwright (npm run test:e2e)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
 
 # Defesa em profundidade: exports de backup (dados reais de produção) nunca
 # devem ser commitados, mesmo se alguém rodar o script a partir da raiz do

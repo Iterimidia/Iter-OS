@@ -152,7 +152,7 @@ export function buildCalendarEvents(scope: BaseId, user: User, data: CalendarSou
 export function groupEventsByDate(events: CalendarEvent[]): Record<string, CalendarEvent[]> {
   return events.reduce(
     (acc, e) => {
-      ;(acc[e.date] ??= []).push(e)
+      (acc[e.date] ??= []).push(e)
       return acc
     },
     {} as Record<string, CalendarEvent[]>,
