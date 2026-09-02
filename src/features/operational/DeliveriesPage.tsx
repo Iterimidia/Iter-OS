@@ -37,17 +37,19 @@ export function DeliveriesPage() {
   const accessibleClients = clients.filter((c) => canAccessClient(user, c.id))
 
   // Garante as unidades do mês corrente pra cada item contratado, até a
-  // quantidade combinada. `reconcileDeliveryUnits` é idempotente no
-  // servidor (upsert com UNIQUE(plan_item_id,month,unit_index) + ON
-  // CONFLICT DO NOTHING) — rodar de novo, inclusive ao mesmo tempo em
-  // outra aba/sessão, nunca cria unidades a mais do que o contratado. Pula
-  // itens ainda pendentes de confirmação no Supabase (evita a foreign key
+  // quantidade vigente. `reconcileDeliveryUnits` roda inteira numa RPC que
+  // trava a linha do item contratado e lê `monthlyQuantity` dentro da
+  // transação (correção pós-revisão Codex, 4ª rodada) — rodar de novo,
+  // inclusive ao mesmo tempo em outra aba/sessão ou concorrendo com uma
+  // redução de quantidade, nunca cria unidades a mais do que o contratado
+  // nem deixa a quantidade cair abaixo do que já existe. Pula itens ainda
+  // pendentes de confirmação no Supabase (evita a foreign key
   // delivery_units_plan_item_id_fkey: addDeliveryPlanItem já cuida desse
   // caso sozinho depois que o item é confirmado).
   useEffect(() => {
     for (const item of deliveryPlanItems) {
       if (isDeliveryPlanItemPending(item.id)) continue
-      reconcileDeliveryUnits(item.id, item.clientId, month, item.monthlyQuantity)
+      reconcileDeliveryUnits(item.id, month)
     }
   }, [month, deliveryPlanItems, deliveryUnits, reconcileDeliveryUnits])
 

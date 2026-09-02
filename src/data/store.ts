@@ -230,6 +230,22 @@ async function reconcileRowFromServer<T extends { id: string }>(
   expectedRef: T | undefined,
   fallback: T | undefined,
   columns: string,
+  // Correção pós-revisão Codex (4ª rodada): 'fallback' (usado por
+  // updateRow) cai pro último valor confirmado quando a releitura falha —
+  // válido pra update, já que a linha nunca some do array, só o VALOR do
+  // campo fica incerto, e reverter pro que tínhamos antes da nossa própria
+  // tentativa é uma correção razoável.
+  //
+  // Pra delete (removeRow), isso NÃO é seguro: a linha já está ausente do
+  // array pela otimista, e `fallback` (beforeDelete) pode já estar
+  // OBSOLETO — uma edição concorrente válida pode ter mudado a linha entre
+  // o snapshot e agora, e restaurá-lo sobrescreveria essa mudança com dado
+  // velho. 'require-reload' cobre esse caso: não restaura nada (nem o
+  // "ausente" otimista, nem um snapshot antigo) e em vez disso marca a
+  // carga inteira como não confiável (`loadError`) — RequireAuth bloqueia
+  // a árvore privada até uma releitura autoritativa completa
+  // (`initialize`) reconstruir o estado real a partir do banco.
+  onReadFailure: 'fallback' | 'require-reload' = 'fallback',
 ): Promise<{ confirmed: true } | { confirmed: false; error: string }> {
   const result = await readRowSafely<T>(table, id, columns)
   let outcome: { confirmed: true } | { confirmed: false; error: string } = { confirmed: true }
@@ -239,6 +255,11 @@ async function reconcileRowFromServer<T extends { id: string }>(
     if (current !== expectedRef) return {} // já mudou por outro motivo desde que a reconciliação começou — não sobrescreve
 
     if (result.kind === 'read_failed') {
+      if (onReadFailure === 'require-reload') {
+        const message = `Não foi possível confirmar se uma exclusão em "${table}" funcionou (${result.error}). Os dados podem estar desatualizados — recarregue para confirmar o estado real antes de continuar.`
+        outcome = { confirmed: false, error: message }
+        return { loadError: message } as Partial<DataState>
+      }
       outcome = { confirmed: false, error: `Não foi possível confirmar o estado atual em "${table}" (${result.error}). Recarregue para verificar.` }
       if (!fallback) return {} // sem estado confirmado anterior pra usar como fallback -- não mexe (não é uma alegação de sucesso; `outcome` já sinaliza a falha)
       return { [key]: current ? list.map((x) => (x.id === id ? fallback : x)) : [...list, fallback] } as Partial<DataState>
@@ -310,9 +331,15 @@ async function updateRow<T extends { id: string }>(
  * não restaura a lista inteira antiga (que pode já ter mudado por outra
  * ação/Realtime enquanto isso corria) — relê só essa linha do banco e
  * reconcilia apenas ela (`expectedRef: undefined` porque a otimista já
- * removeu a linha; se algo já a recolocou lá — ex: Realtime — não mexe);
- * se a própria releitura falhar, cai pro valor de antes da exclusão
- * (`beforeDelete`) em vez de aceitar a ausência sem confirmação real.
+ * removeu a linha; se algo já a recolocou lá — ex: Realtime — não mexe).
+ *
+ * Correção pós-revisão Codex (4ª rodada): se a PRÓPRIA releitura também
+ * falhar, NÃO existe um snapshot seguro pra restaurar — o valor de antes
+ * da exclusão pode já estar obsoleto (uma edição concorrente válida pode
+ * ter mudado a linha nesse meio-tempo) e a ausência otimista também não
+ * pode ser tratada como exclusão confirmada. `reconcileRowFromServer` com
+ * `'require-reload'` cobre isso: marca a carga como não confiável em vez
+ * de arriscar qualquer um dos dois — ver o comentário lá.
  *
  * `opts.columns`: mesma exigência do `updateRow` — para `users`, sempre
  * `USER_SAFE_COLUMNS`.
@@ -327,11 +354,10 @@ async function removeRow<T extends { id: string }>(
   opts: { columns?: string } = {},
 ): Promise<MutationResult<null>> {
   const columns = opts.columns ?? '*'
-  const beforeDelete = getList<T>(get(), key).find((x) => x.id === id)
   set((s) => ({ [key]: getList<T>(s, key).filter((x) => x.id !== id) }) as Partial<DataState>)
   const { data, error } = await supabase.from(table).delete().eq('id', id).select(columns as '*').maybeSingle()
   if (error || !data) {
-    const reconcile = await reconcileRowFromServer<T>(set, get, key, table, id, undefined, beforeDelete, columns)
+    const reconcile = await reconcileRowFromServer<T>(set, get, key, table, id, undefined, undefined, columns, 'require-reload')
     const baseErr = error ? error.message : 'Nenhuma linha foi afetada — o registro pode já ter sido excluído por outra sessão.'
     const finalErr = reconcile.confirmed ? baseErr : `${baseErr} ${reconcile.error}`
     reportError(label, table, { message: finalErr })
@@ -428,13 +454,17 @@ interface DataState {
   removeDeliveryUnit: (id: string) => Promise<MutationResult<null>>
   /**
    * Garante que existem exatamente `monthlyQuantity` unidades pro
-   * (planItemId, month) dado — idempotente no servidor (upsert com
-   * UNIQUE(plan_item_id,month,unit_index) + ON CONFLICT DO NOTHING), então
-   * chamar duas vezes (simultâneo ou repetido) nunca cria unidades a mais.
-   * Usada tanto na criação de um item contratado quanto na tela de
+   * (planItemId, month) dado, usando o `monthlyQuantity` VIGENTE no banco
+   * no momento da chamada (não um valor passado pelo client) — a RPC
+   * `reconcile_delivery_units` trava a linha do item contratado e lê a
+   * quantidade dentro da mesma transação (correção pós-revisão Codex, 4ª
+   * rodada). Idempotente no servidor (UNIQUE(plan_item_id,month,unit_index)
+   * + ON CONFLICT DO NOTHING), então chamar duas vezes (simultâneo ou
+   * repetido, inclusive de abas/sessões diferentes) nunca cria unidades a
+   * mais. Usada tanto na criação de um item contratado quanto na tela de
    * Entregas (DeliveriesPage) pra completar o mês corrente.
    */
-  reconcileDeliveryUnits: (planItemId: string, clientId: string, month: string, monthlyQuantity: number) => Promise<MutationResult<DeliveryUnit[]>>
+  reconcileDeliveryUnits: (planItemId: string, month: string) => Promise<MutationResult<DeliveryUnit[]>>
 
   updateDashboardCard: (id: string, patch: Partial<DashboardCardDefinition>) => Promise<MutationResult<DashboardCardDefinition>>
 
@@ -478,73 +508,54 @@ export function isDeliveryPlanItemPending(id: string): boolean {
 }
 
 /**
- * Reconciliação idempotente de delivery_units (correção pós-revisão Codex,
- * Fase 4): duas chamadas simultâneas/repetidas pra "garanta que existem N
- * unidades pro plano X no mês Y" não podem, juntas, criar mais do que N.
+ * Reconciliação de delivery_units (correção pós-revisão Codex, Fase 4).
  *
- * A idempotência de verdade é da constraint UNIQUE (plan_item_id, month,
- * unit_index) no banco (migration
- * 20260901190000_delivery_units_idempotent_reconciliation.sql) + upsert com
- * `ON CONFLICT DO NOTHING`: tentar criar "a unidade Nº 2 do plano X em
- * setembro" duas vezes ao mesmo tempo, de duas abas, dois usuários ou dois
- * retries, sempre resulta em NO MÁXIMO uma linha — a segunda tentativa é
- * simplesmente ignorada pelo Postgres, não é uma corrida "quem chega
- * primeiro no client". Isso vale mesmo que o guard local abaixo (o `Map`)
- * falhe por qualquer motivo — duas abas são dois processos JS diferentes,
- * sem como um enxergar o `Map` do outro.
+ * Desde a correção da 4ª rodada, a criação em si roda inteira dentro da
+ * RPC `reconcile_delivery_units` (migration
+ * 20260902130000_delivery_plan_item_quantity_rpc.sql): a função trava a
+ * linha do item contratado (`SELECT ... FOR UPDATE`) antes de ler
+ * `monthly_quantity` e só então cria `unit_index = 1..monthly_quantity`,
+ * usando a UNIQUE(plan_item_id, month, unit_index) + `ON CONFLICT DO
+ * NOTHING` (migration 20260901190000) pra nunca duplicar. Isso serializa
+ * contra `update_delivery_plan_item_quantity` (mesma trava) — uma redução
+ * de quantidade e uma reconciliação concorrentes pro MESMO item nunca
+ * correm de verdade em paralelo, então o resultado final nunca fica
+ * inconsistente (quantidade menor que o número real de unidades), mesmo
+ * entre abas/sessões diferentes sem nenhuma coordenação entre si. Isso não
+ * depende do client pra garantir integridade — é o Postgres quem
+ * serializa, não o `Map` abaixo.
  *
- * O `Map` guarda a PROMISE em voo (não só um booleano) por
- * (planItemId, month): uma segunda chamada concorrente pro MESMO plano+mês,
- * dentro do MESMO processo (ex: DeliveriesPage e addDeliveryPlanItem
- * disputando o mesmo plano recém-criado), espera o resultado real da
- * primeira em vez de (a) disparar outra tentativa à toa ou (b) desistir
- * cedo com uma resposta vazia que poderia ser mal interpretada como
- * "faltou completar".
+ * O `Map` continua existindo só como otimização DENTRO do mesmo processo
+ * JS: guarda a PROMISE em voo (não só um booleano) por (planItemId,
+ * month), então uma segunda chamada concorrente pro MESMO plano+mês nesta
+ * mesma aba (ex: DeliveriesPage e addDeliveryPlanItem disputando o mesmo
+ * plano recém-criado) espera o resultado real da primeira em vez de
+ * disparar outra chamada de RPC à toa.
  */
 const reconcilingDeliveryUnits = new Map<string, Promise<MutationResult<DeliveryUnit[]>>>()
 
-function reconcileDeliveryUnitsInternal(
-  set: SetFn,
-  get: GetFn,
-  planItemId: string,
-  clientId: string,
-  month: string,
-  monthlyQuantity: number,
-): Promise<MutationResult<DeliveryUnit[]>> {
+function reconcileDeliveryUnitsInternal(set: SetFn, get: GetFn, planItemId: string, month: string): Promise<MutationResult<DeliveryUnit[]>> {
   const guardKey = `${planItemId}:${month}`
+  const planItem = get().deliveryPlanItems.find((p) => p.id === planItemId)
   const currentUnits = get().deliveryUnits.filter((u) => u.planItemId === planItemId && u.month === month)
-  if (currentUnits.length >= monthlyQuantity) return Promise.resolve({ ok: true, data: currentUnits })
+  // Otimização local (não é a garantia de integridade -- essa é da RPC):
+  // se já temos localmente pelo menos `monthlyQuantity` unidades pra esse
+  // plano+mês, não vale a pena gastar um round-trip de rede pra confirmar
+  // o óbvio. Se `monthlyQuantity` local estiver desatualizado, a PRÓXIMA
+  // vez que este efeito rodar (Realtime atualiza `deliveryPlanItems`, o
+  // que já é uma dependência do efeito em DeliveriesPage) corrige sozinho.
+  if (planItem && currentUnits.length >= planItem.monthlyQuantity) return Promise.resolve({ ok: true, data: currentUnits })
 
   const inFlight = reconcilingDeliveryUnits.get(guardKey)
   if (inFlight) return inFlight
 
   const attempt = (async (): Promise<MutationResult<DeliveryUnit[]>> => {
-    const rows = Array.from({ length: monthlyQuantity }, (_, i) => ({
-      id: generateId('dunit'),
-      plan_item_id: planItemId,
-      client_id: clientId,
-      month,
-      unit_index: i + 1,
-      status: 'pendente' as const,
-      created_at: todayIso(),
-    }))
-    const { error: upsertError } = await supabase
-      .from('delivery_units')
-      .upsert(rows, { onConflict: 'plan_item_id,month,unit_index', ignoreDuplicates: true })
-    if (upsertError) {
-      reportError('reconciliar entregas do mês', 'delivery_units', upsertError)
-      return { ok: false, error: upsertError.message }
+    const { data, error } = await supabase.rpc('reconcile_delivery_units', { p_plan_item_id: planItemId, p_month: month })
+    if (error) {
+      reportError('reconciliar entregas do mês', 'delivery_units', { message: error.message, code: error.code })
+      return { ok: false, error: error.message }
     }
-    // A verdade agora é o banco (não importa se fomos nós, uma aba
-    // concorrente ou um retry quem efetivamente inseriu cada linha) — relê
-    // exatamente esse plano+mês e substitui no store, nem mais nem menos
-    // do que existe de fato.
-    const { data: freshUnits, error: selectError } = await supabase.from('delivery_units').select('*').eq('plan_item_id', planItemId).eq('month', month)
-    if (selectError) {
-      reportError('reconciliar entregas do mês', 'delivery_units', selectError)
-      return { ok: false, error: selectError.message }
-    }
-    const authoritative = (freshUnits ?? []).map((row) => rowToEntity<DeliveryUnit>(row))
+    const authoritative = ((data ?? []) as Record<string, unknown>[]).map((row) => rowToEntity<DeliveryUnit>(row))
     set((s) => ({ deliveryUnits: [...s.deliveryUnits.filter((u) => !(u.planItemId === planItemId && u.month === month)), ...authoritative] }))
     return { ok: true, data: authoritative }
   })()
@@ -838,7 +849,7 @@ export const useDataStore = create<DataState>()((set, get) => ({
     // está aberta quando o item é criado), as duas tentativas convergem
     // pro mesmo resultado sem duplicar nada.
     const month = todayIso().slice(0, 7)
-    const unitsResult = await reconcileDeliveryUnitsInternal(set, get, item.id, item.clientId, month, item.monthlyQuantity)
+    const unitsResult = await reconcileDeliveryUnitsInternal(set, get, item.id, month)
     pendingPlanItemIds.delete(item.id)
 
     if (!unitsResult.ok || unitsResult.data.length < item.monthlyQuantity) {
@@ -849,35 +860,45 @@ export const useDataStore = create<DataState>()((set, get) => ({
     return result
   },
   updateDeliveryPlanItem: async (id, patch) => {
-    // Correção pós-revisão Codex (3º round, ponto 3B): reduzir
-    // monthlyQuantity não pode deixar mais unidades já existentes no
-    // período relevante do que a nova quantidade, silenciosamente. Não há
-    // como saber se a quantidade contratada era diferente em meses
-    // PASSADOS (monthly_quantity não é versionado por mês), então a
-    // checagem fica restrita ao MÊS CORRENTE — o único período em que
-    // "nova quantidade < unidades já existentes" é inequivocamente um
-    // conflito, sem precisar adivinhar histórico. Bloqueia com uma
-    // mensagem clara e preserva as unidades existentes intactas, em vez de
-    // apagar/ignorar qualquer coisa ou fingir que ficou tudo reconciliado.
-    if (patch.monthlyQuantity !== undefined) {
-      const month = todayIso().slice(0, 7)
-      const existingUnitsThisMonth = get().deliveryUnits.filter((u) => u.planItemId === id && u.month === month).length
-      if (patch.monthlyQuantity < existingUnitsThisMonth) {
-        const currentItem = get().deliveryPlanItems.find((p) => p.id === id)
-        const message = `Não é possível reduzir a quantidade mensal${currentItem ? ` de "${currentItem.label}"` : ''} para ${patch.monthlyQuantity}: já existem ${existingUnitsThisMonth} entrega(s) registrada(s) para o mês corrente (${month}). Ajuste ou remova manualmente as entregas existentes antes de reduzir a quantidade.`
-        window.alert(message)
-        return { ok: false, error: message }
-      }
+    if (patch.monthlyQuantity === undefined) {
+      return updateRow<DeliveryPlanItem>(set, get, 'deliveryPlanItems', 'delivery_plan_items', 'atualizar item contratado', id, patch)
     }
-    return updateRow<DeliveryPlanItem>(set, get, 'deliveryPlanItems', 'delivery_plan_items', 'atualizar item contratado', id, patch)
+    // Correção pós-revisão Codex (4ª rodada): a checagem "reduzir não pode
+    // deixar mais unidades do que a nova quantidade" precisa ser atômica
+    // no banco — validar localmente (Zustand) e só depois escrever permite
+    // uma corrida real entre abas (uma reduz enquanto a outra está
+    // reconciliando unidades da quantidade antiga; ver
+    // reconcileDeliveryUnitsInternal). A RPC
+    // update_delivery_plan_item_quantity trava a MESMA linha que
+    // reconcile_delivery_units trava, reconta as unidades do mês corrente
+    // DENTRO da transação e só então decide — nenhuma quantidade de abas
+    // concorrentes consegue produzir monthly_quantity menor que o número
+    // real de unidades. Não apaga nada automaticamente em nenhum caso;
+    // recusa com uma mensagem clara (RAISE EXCEPTION) em vez disso.
+    const { monthlyQuantity, ...rest } = patch
+    const { data, error } = await supabase.rpc('update_delivery_plan_item_quantity', { p_plan_item_id: id, p_new_quantity: monthlyQuantity })
+    if (error) {
+      reportError('atualizar quantidade mensal', 'delivery_plan_items', { message: error.message, code: error.code })
+      return { ok: false, error: error.message }
+    }
+    // Função não-SETOF: o PostgREST devolve o objeto diretamente, mas
+    // normaliza defensivamente caso venha como array de 1 elemento.
+    const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null
+    if (!row) {
+      const message = 'A atualização de quantidade não retornou o registro esperado.'
+      reportError('atualizar quantidade mensal', 'delivery_plan_items', { message })
+      return { ok: false, error: message }
+    }
+    const authoritative = rowToEntity<DeliveryPlanItem>(row)
+    set((s) => ({ deliveryPlanItems: s.deliveryPlanItems.map((p) => (p.id === id ? authoritative : p)) }))
+    if (Object.keys(rest).length === 0) return { ok: true, data: authoritative }
+    return updateRow<DeliveryPlanItem>(set, get, 'deliveryPlanItems', 'delivery_plan_items', 'atualizar item contratado', id, rest as Partial<DeliveryPlanItem>)
   },
   removeDeliveryPlanItem: async (id) => {
     // delivery_units.plan_item_id -> delivery_plan_items.id é ON DELETE
     // CASCADE no banco: excluir o item contratado já apaga as unidades dele
     // no servidor. A atualização otimista espelha isso localmente (remove
     // dos dois arrays de uma vez).
-    const previousItem = get().deliveryPlanItems.find((p) => p.id === id)
-    const previousUnits = get().deliveryUnits.filter((u) => u.planItemId === id)
     set((s) => ({
       deliveryPlanItems: s.deliveryPlanItems.filter((p) => p.id !== id),
       deliveryUnits: s.deliveryUnits.filter((u) => u.planItemId !== id),
@@ -886,24 +907,22 @@ export const useDataStore = create<DataState>()((set, get) => ({
     if (error || !data) {
       // Confirma o estado real em vez de restaurar um snapshot antigo por
       // padrão: o item pode ainda existir de fato (falha real) ou já ter
-      // sido removido por outra sessão. Correção pós-revisão Codex (3º
-      // round): se a PRÓPRIA releitura falhar, isso NUNCA é tratado como
-      // "confirmado excluído" — restaura o item e as unidades de antes da
-      // tentativa (último estado confirmado) em vez de deixar a exclusão
-      // "vencer" sem nenhuma confirmação real.
+      // sido removido por outra sessão.
       const itemRead = await readRowSafely<DeliveryPlanItem>('delivery_plan_items', id, '*')
       let reconcileNote = ''
       if (itemRead.kind === 'read_failed') {
-        reconcileNote = ` Não foi possível confirmar se a exclusão funcionou (${itemRead.error}). Recarregue para verificar.`
-        if (previousItem) {
-          set((s) => {
-            if (s.deliveryPlanItems.some((p) => p.id === id)) return {} // já foi recolocado por outro motivo (ex: Realtime) -- não sobrescreve
-            return {
-              deliveryPlanItems: [...s.deliveryPlanItems, previousItem],
-              deliveryUnits: [...s.deliveryUnits.filter((u) => u.planItemId !== id), ...previousUnits],
-            }
-          })
-        }
+        // Correção pós-revisão Codex (4ª rodada): a PRÓPRIA releitura
+        // falhou -- restaurar o snapshot de antes da tentativa
+        // (previousItem/previousUnits) arriscaria sobrescrever uma edição
+        // concorrente válida que tenha acontecido nesse meio-tempo com
+        // dado obsoleto, e deixar a ausência otimista como está arriscaria
+        // tratar uma exclusão NÃO confirmada como definitiva. Sem um
+        // fallback seguro pra nenhum dos dois lados, marca a carga inteira
+        // como não confiável — só uma releitura autoritativa completa
+        // (reload) pode reconstruir o estado real a partir do banco.
+        const message = `Não foi possível confirmar se a exclusão de um item contratado funcionou (${itemRead.error}). Os dados podem estar desatualizados — recarregue para confirmar o estado real antes de continuar.`
+        reconcileNote = ` ${message}`
+        set((s) => (s.deliveryPlanItems.some((p) => p.id === id) ? {} : { loadError: message })) // já foi recolocado por outro motivo (ex: Realtime) -- não sobrescreve
       } else if (itemRead.kind === 'found') {
         // Confirmado que o item ainda existe de fato -- relê também as
         // unidades dele; nunca restaura os arrays a partir de um valor
@@ -938,7 +957,7 @@ export const useDataStore = create<DataState>()((set, get) => ({
   },
   updateDeliveryUnit: (id, patch) => updateRow<DeliveryUnit>(set, get, 'deliveryUnits', 'delivery_units', 'atualizar entrega', id, patch),
   removeDeliveryUnit: (id) => removeRow<DeliveryUnit>(set, get, 'deliveryUnits', 'delivery_units', 'excluir entrega', id),
-  reconcileDeliveryUnits: (planItemId, clientId, month, monthlyQuantity) => reconcileDeliveryUnitsInternal(set, get, planItemId, clientId, month, monthlyQuantity),
+  reconcileDeliveryUnits: (planItemId, month) => reconcileDeliveryUnitsInternal(set, get, planItemId, month),
 
   updateDashboardCard: (id, patch) => updateRow<DashboardCardDefinition>(set, get, 'dashboardCards', 'dashboard_cards', 'atualizar card', id, patch),
 
