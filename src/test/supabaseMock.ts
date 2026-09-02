@@ -16,7 +16,25 @@ export interface PgResponse {
   error?: { message: string; code?: string } | null
 }
 
-const queues = new Map<string, PgResponse[]>()
+type QueuedResponse = PgResponse | Promise<PgResponse>
+
+const queues = new Map<string, QueuedResponse[]>()
+
+/**
+ * Promise controlada de fora — pra testes que precisam manter uma consulta
+ * "pendurada" de propósito (janela de retry, invalidação de generation) em
+ * vez de sempre resolver na hora. Passe `deferred().promise` pro `enqueue` e
+ * chame `.resolve(...)` quando o teste decidir que a resposta chega.
+ */
+export function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
 
 export interface RecordedCall {
   table: string
@@ -28,7 +46,7 @@ export interface RecordedCall {
  * asserções do tipo "esta tabela nunca foi lida com a coluna X" sem reimplementar o builder real. */
 export const calls: RecordedCall[] = []
 
-function nextFor(table: string): PgResponse {
+function nextFor(table: string): QueuedResponse {
   const q = queues.get(table)
   if (!q || q.length === 0) {
     throw new Error(
@@ -38,8 +56,12 @@ function nextFor(table: string): PgResponse {
   return q.shift()!
 }
 
-/** Enfileira a resposta que a PRÓXIMA chamada a `.from(table)` deve resolver. */
-export function enqueue(table: string, response: PgResponse) {
+/**
+ * Enfileira a resposta que a PRÓXIMA chamada a `.from(table)` deve resolver.
+ * Aceita tanto um valor pronto quanto uma Promise (ex: de `deferred()`) —
+ * nesse caso a cadeia só resolve quando essa Promise resolver de verdade.
+ */
+export function enqueue(table: string, response: QueuedResponse) {
   const q = queues.get(table) ?? []
   q.push(response)
   queues.set(table, q)

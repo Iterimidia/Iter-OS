@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { resetSupabaseMock, supabase } from '@/test/supabaseMock'
+import { type PgResponse, deferred, enqueue, resetSupabaseMock, supabase } from '@/test/supabaseMock'
 
 vi.mock('@/lib/supabaseClient', () => ({ supabase }))
 
@@ -11,6 +11,30 @@ import { useDataStore } from '@/data/store'
 import { makeUser } from '@/test/fixtures'
 
 const IDENTITY_A = 'auth_user_a'
+
+// As mesmas 12 tabelas (+ users) que `initialize()` busca de verdade em
+// store.ts, na mesma ordem do Promise.all -- usado pelos testes que rodam o
+// initialize() REAL (não um fake), pra dar uma resposta "sucesso, vazio" a
+// cada uma sem precisar repetir a lista em cada teste.
+const OTHER_TABLES = [
+  'clients',
+  'projects',
+  'tasks',
+  'calendar_events',
+  'financial_entries',
+  'leads',
+  'content_items',
+  'files',
+  'delivery_plan_items',
+  'delivery_units',
+  'dashboard_cards',
+  'app_settings',
+]
+
+function enqueueAllTablesSuccess() {
+  enqueue('users', { data: [], error: null })
+  for (const t of OTHER_TABLES) enqueue(t, { data: [], error: null })
+}
 
 function renderPrivateTree() {
   return render(
@@ -103,23 +127,48 @@ describe('RequireAuth — loadError permanece bloqueando até uma carga bem-suce
     expect(screen.queryByText('CONTEUDO_PRIVADO')).not.toBeInTheDocument()
   })
 
-  it('clicar em "Tentar novamente" chama initialize(identityId) de novo, e uma nova falha mantém o bloqueio (não libera a árvore privada)', async () => {
-    useAuthStore.setState({ status: 'signed_in', session: { user: { id: IDENTITY_A } } as never })
-    useDataStore.setState({ loadedIdentityId: null, loadError: 'Falha original.' })
+  it('clicar em "Tentar novamente" roda o initialize() REAL do store; loadError só limpa se/quando a carga terminar com sucesso', async () => {
+    // 1) carga inicial bem-sucedida de A -- estabelece currentIdentity=A e
+    // loadedIdentityId=A por dentro do store (variáveis de módulo que só
+    // `initialize()` real toca; um fake nunca exercitaria essa parte).
+    enqueueAllTablesSuccess()
+    await useDataStore.getState().initialize(IDENTITY_A)
+    expect(useDataStore.getState().loadedIdentityId).toBe(IDENTITY_A)
+    expect(useDataStore.getState().loadError).toBeNull()
 
-    const retryInitialize = vi.fn(async () => {
-      // Simula uma segunda tentativa que também falha: store.ts real
-      // substitui loadError por uma nova mensagem, nunca limpa cedo demais.
-      useDataStore.setState({ loadError: 'Falha na nova tentativa.' })
-    })
-    useDataStore.setState({ initialize: retryInitialize })
+    // 2) alguma falha subsequente aconteceu (não importa qual mecanismo
+    // exato -- o que este teste prova é o comportamento do retry em si).
+    useDataStore.setState({ loadError: 'Falha anterior (simulada).' })
+    useAuthStore.setState({ status: 'signed_in', session: { user: { id: IDENTITY_A } } as never })
 
     renderPrivateTree()
+    expect(screen.getByText('Falha anterior (simulada).')).toBeInTheDocument()
+
+    // 3) prepara o retry com 'clients' deliberadamente pendurado -- é o
+    // initialize() DE VERDADE quem vai rodar ao clicar, não um substituto.
+    const clientsDeferred = deferred<PgResponse>()
+    enqueue('users', { data: [], error: null })
+    enqueue('clients', clientsDeferred.promise)
+    for (const t of OTHER_TABLES.filter((t) => t !== 'clients')) enqueue(t, { data: [], error: null })
+
     const retryButton = screen.getByRole('button', { name: /tentar novamente/i })
     retryButton.click()
 
-    await waitFor(() => expect(retryInitialize).toHaveBeenCalledWith(IDENTITY_A))
-    await waitFor(() => expect(screen.getByText('Falha na nova tentativa.')).toBeInTheDocument())
+    // 4) mesmo depois de dar tempo pras outras 12 tabelas resolverem, o
+    // Promise.all inteiro continua pendurado em 'clients' -- loadError NÃO
+    // pode ter sido limpo no início do retry (regressão da 5ª rodada), e a
+    // árvore privada continua bloqueada.
+    await new Promise((r) => setTimeout(r, 20))
+    expect(useDataStore.getState().loadError).toBe('Falha anterior (simulada).')
+    expect(screen.getByText('Falha anterior (simulada).')).toBeInTheDocument()
     expect(screen.queryByText('CONTEUDO_PRIVADO')).not.toBeInTheDocument()
+
+    // 5) só agora resolve a última consulta pendente -- e só então, de uma
+    // vez (atomicamente), o novo estado é publicado.
+    clientsDeferred.resolve({ data: [], error: null })
+    await waitFor(() => expect(screen.getByText('CONTEUDO_PRIVADO')).toBeInTheDocument())
+    expect(useDataStore.getState().loadError).toBeNull()
+    expect(useDataStore.getState().initialized).toBe(true)
+    expect(useDataStore.getState().loadedIdentityId).toBe(IDENTITY_A)
   })
 })

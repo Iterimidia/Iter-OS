@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { calls, enqueue, resetSupabaseMock, supabase } from '@/test/supabaseMock'
+import { type PgResponse, calls, deferred, enqueue, resetSupabaseMock, supabase } from '@/test/supabaseMock'
 
 vi.mock('@/lib/supabaseClient', () => ({ supabase }))
 
@@ -235,5 +235,44 @@ describe('initialize()', () => {
 
     expect(useDataStore.getState().initialized).toBe(false)
     expect(useDataStore.getState().loadError).toBeTruthy()
+  })
+
+  // Reproduz o cenário de invalidação por `generation` (Fase 3/4): uma
+  // chamada de initialize() de uma identidade A que fica pendurada na rede
+  // não pode "ganhar" e sobrescrever o estado depois que o usuário já
+  // trocou pra B — nem dado, nem loadedIdentityId, nem loadError.
+  it('resultado tardio de initialize(A), resolvido só depois da troca pra B, não publica dados nem mexe no estado de B', async () => {
+    // A começa a carregar; toda tabela resolve na hora, exceto 'clients',
+    // que fica deliberadamente pendurada -- é o suficiente pra manter o
+    // Promise.all inteiro de A em voo enquanto B assume.
+    const aClientsDeferred = deferred<PgResponse>()
+    enqueue('users', { data: [{ id: 'usr_a', name: 'Usuário A', email: 'a@a.com', role: 'admin', active: true }], error: null })
+    enqueue('clients', aClientsDeferred.promise)
+    for (const t of TABLES.filter((t) => t !== 'clients')) enqueue(t, { data: [], error: null })
+
+    const initA = useDataStore.getState().initialize('identity_a')
+    // Dá tempo das 12 tabelas não-pendentes de A já terem sido "puxadas" da
+    // fila antes de preparar as respostas de B (mesma tabela, fila própria).
+    await new Promise((r) => setTimeout(r, 0))
+
+    // B assume enquanto A ainda está pendurado em 'clients'.
+    enqueueAllTablesSuccess()
+    await useDataStore.getState().initialize('identity_b')
+    expect(useDataStore.getState().loadedIdentityId).toBe('identity_b')
+    expect(useDataStore.getState().initialized).toBe(true)
+    expect(useDataStore.getState().loadError).toBeNull()
+
+    // SÓ AGORA a consulta antiga de A finalmente responde (com um cliente
+    // que, se aplicado, provaria o vazamento).
+    aClientsDeferred.resolve({ data: [{ id: 'cli_from_a', name: 'Cliente vazado de A', status: 'ativo', plan: 'x', billing_type: 'percentual', monthly_value: 0, services: [], strategic_responsible_id: 'u', creative_responsible_id: 'u', created_at: '2026-01-01' }], error: null })
+    await initA
+    await new Promise((r) => setTimeout(r, 0))
+
+    // O resultado tardio de A não conseguiu nada: nem trocar a identidade
+    // dona dos dados, nem reintroduzir o cliente "vazado", nem sujar B com
+    // um loadError.
+    expect(useDataStore.getState().loadedIdentityId).toBe('identity_b')
+    expect(useDataStore.getState().loadError).toBeNull()
+    expect(useDataStore.getState().clients.some((c) => c.id === 'cli_from_a')).toBe(false)
   })
 })
