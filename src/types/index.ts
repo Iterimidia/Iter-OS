@@ -141,7 +141,8 @@ export interface Task {
   type: string
   area: BaseId
   createdAt: string
-  completedAt?: string
+  /** `null` explícito = "não está concluída" (ex: reaberta) -- diferente de `undefined`, que o Supabase nunca grava (a chave some do JSON antes de chegar no banco). */
+  completedAt?: string | null
   fileIds?: string[]
   comments?: Comment[]
 }
@@ -193,7 +194,8 @@ export interface FinancialEntry {
   clientId?: string
   amount: number
   dueDate: string
-  paidDate?: string
+  /** `null` explícito = "sem data de pagamento" (ex: saiu de `pago`) -- diferente de `undefined`, que o Supabase nunca grava (a chave some do JSON antes de chegar no banco). */
+  paidDate?: string | null
   status: FinancialStatus
   recurring?: boolean
 }

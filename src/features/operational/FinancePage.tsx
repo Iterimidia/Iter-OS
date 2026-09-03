@@ -4,7 +4,7 @@ import type { FinancialEntry, FinancialStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction } from '@/lib/permissions'
-import { addDaysIso, FINANCIAL_STATUS_META, formatCurrency, formatDate, isThisMonth } from '@/lib/utils'
+import { addDaysIso, FINANCIAL_STATUS_META, formatCurrency, formatDate, isThisMonth, resolvePaidDateOnStatusChange } from '@/lib/utils'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { Tabs } from '@/components/ui/Tabs'
@@ -87,12 +87,11 @@ export function FinancePage() {
         onChange={(status) =>
           updateFinancialEntry(entry.id, {
             status,
-            // Mesma regra do FinancialEntryFormModal: marcar "pago" precisa
-            // carimbar paidDate -- sem isso, "Receita recebida" (que soma por
-            // paidDate, caindo pra dueDate só na ausência dele) atribui o
-            // recebimento ao mês de vencimento em vez do mês em que o
-            // pagamento foi de fato confirmado por aqui.
-            ...(status === 'pago' && !entry.paidDate ? { paidDate: new Date().toISOString().slice(0, 10) } : {}),
+            // Regra única (src/lib/utils.ts): entrar em "pago" carimba hoje,
+            // sair de "pago" limpa paidDate de verdade (null, nunca
+            // undefined -- undefined some do JSON e nunca chega a limpar a
+            // coluna no Supabase), permanecer em "pago" preserva a data.
+            paidDate: resolvePaidDateOnStatusChange(entry.status, entry.paidDate, status),
           })
         }
         disabled={!canEditEntry}

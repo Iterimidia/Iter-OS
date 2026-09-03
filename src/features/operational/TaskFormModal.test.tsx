@@ -29,19 +29,21 @@ beforeEach(() => {
   useDataStore.setState({ users: [makeUser({ id: 'usr_1', name: 'Responsável Teste' })], clients: [], projects: [] })
 })
 
-// Bug real encontrado na Fase 7: OperationPage.tsx tem uma função
-// `changeStatus` só usada pelo Kanban/StatusSelect que carimba
-// `completedAt` ao marcar "concluído" -- mas editar a MESMA tarefa pelo
-// modal "Editar tarefa" ia por um caminho totalmente diferente
-// (TaskFormModal.handleSubmit) que nunca tocava `completedAt`. Isso é
-// exatamente "comportamento diferente entre telas relacionadas": a mesma
-// ação (marcar tarefa como concluída) tinha efeito colateral em um caminho
-// e não no outro, e DirectionPage/TeamPage leem `completedAt` (não `status`)
-// pra "tarefas concluídas esta semana" -- uma tarefa concluída só pelo modal
-// nunca aparecia nessa métrica.
-describe('TaskFormModal — editar status pra "concluído" carimba completedAt (mesma regra do Kanban)', () => {
-  it('mudar o status pra concluído pelo modal inclui completedAt no payload', async () => {
-    const task = makeTask({ status: 'em_andamento', completedAt: undefined })
+// Bug real encontrado na Fase 7 e corrigido em duas rodadas: (1)
+// OperationPage.tsx tem uma função `changeStatus` só usada pelo
+// Kanban/StatusSelect que carimba `completedAt` ao marcar "concluído" --
+// mas editar a MESMA tarefa pelo modal "Editar tarefa" ia por um caminho
+// totalmente diferente (TaskFormModal.handleSubmit) que nunca tocava
+// `completedAt`; (2) reabrir uma tarefa concluída (voltar pra outro status)
+// nunca limpava `completedAt` de verdade (mandava `undefined`, que o
+// Supabase nunca persiste), então ela continuava contando como concluída em
+// DirectionPage/TeamPage ("tarefas concluídas esta semana", que leem
+// completedAt, não status). A regra final vive em
+// `resolveCompletedAtOnStatusChange` (src/lib/utils.ts, com testes
+// próprios); aqui só confirmamos que o modal liga a ela corretamente.
+describe('TaskFormModal — aplica a regra de completedAt ao salvar', () => {
+  it('mudar o status pra concluído pelo modal, mesmo com completedAt antigo/stale, carimba hoje', async () => {
+    const task = makeTask({ status: 'em_andamento', completedAt: '2020-01-01' })
     const updateTask = vi.fn(async (_id: string, _payload: Partial<Task>) => ({ ok: true as const, data: task }))
     useDataStore.setState({ updateTask })
 
@@ -53,6 +55,21 @@ describe('TaskFormModal — editar status pra "concluído" carimba completedAt (
     const [id, payload] = updateTask.mock.calls[0]
     expect(id).toBe('tsk_1')
     expect(payload.completedAt).toBe(new Date().toISOString().slice(0, 10))
+    expect(payload.completedAt).not.toBe('2020-01-01')
+  })
+
+  it('reabrir uma tarefa concluída pelo modal (mudar pra outro status) envia completedAt: null', async () => {
+    const task = makeTask({ status: 'concluido', completedAt: '2025-05-10' })
+    const updateTask = vi.fn(async (_id: string, _payload: Partial<Task>) => ({ ok: true as const, data: task }))
+    useDataStore.setState({ updateTask })
+
+    render(<TaskFormModal open onClose={() => {}} task={task} />)
+    fireEvent.change(screen.getByLabelText('Status inicial'), { target: { value: 'em_andamento' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+
+    await vi.waitFor(() => expect(updateTask).toHaveBeenCalledTimes(1))
+    const [, payload] = updateTask.mock.calls[0]
+    expect(payload.completedAt).toBeNull()
   })
 
   it('editar outro campo sem tocar o status (já concluído) preserva o completedAt original', async () => {

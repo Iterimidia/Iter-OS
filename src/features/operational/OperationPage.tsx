@@ -4,7 +4,7 @@ import type { Priority, Task, TaskStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction } from '@/lib/permissions'
-import { cn, formatDate, isOverdue, PRIORITY_META, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
+import { cn, formatDate, isOverdue, PRIORITY_META, resolveCompletedAtOnStatusChange, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { Tabs } from '@/components/ui/Tabs'
 import { Button } from '@/components/ui/Button'
@@ -56,7 +56,11 @@ export function OperationPage() {
   function changeStatus(task: Task, status: TaskStatus) {
     updateTask(task.id, {
       status,
-      completedAt: status === 'concluido' ? new Date().toISOString().slice(0, 10) : task.completedAt,
+      // Regra única (src/lib/utils.ts): entrar em "concluído" carimba hoje,
+      // sair de "concluído" (reabrir) limpa completedAt de verdade (null --
+      // undefined nunca chegaria a limpar a coluna no Supabase), permanecer
+      // concluído preserva a data.
+      completedAt: resolveCompletedAtOnStatusChange(task.status, task.completedAt, status),
     })
   }
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { BaseId, Priority, Task, TaskStatus } from '@/types'
 import { useDataStore } from '@/data/store'
-import { PRIORITY_META, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
+import { PRIORITY_META, resolveCompletedAtOnStatusChange, TASK_STATUS_META, TASK_STATUS_ORDER } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Label, Select, Textarea } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -67,12 +67,12 @@ export function TaskFormModal({ open, onClose, defaultArea = 'operacional', task
         status: form.status,
         type: form.type || 'Geral',
         area: form.area,
-        // Mesma regra de OperationPage.tsx (changeStatus): marcar "concluído"
-        // por aqui (editar tarefa) precisa carimbar completedAt igual ao
-        // Kanban/StatusSelect fazem -- senão a tarefa concluída por este
-        // caminho não entra em "tarefas concluídas esta semana"
-        // (DirectionPage/TeamPage leem completedAt, não status).
-        completedAt: form.status === 'concluido' ? (task?.completedAt ?? new Date().toISOString().slice(0, 10)) : task?.completedAt,
+        // Regra única (src/lib/utils.ts), igual ao Kanban/StatusSelect de
+        // OperationPage: entrar em "concluído" carimba hoje, sair de
+        // "concluído" (reabrir) limpa completedAt de verdade (null --
+        // undefined nunca chegaria a limpar a coluna no Supabase),
+        // permanecer concluído preserva a data.
+        completedAt: resolveCompletedAtOnStatusChange(task?.status, task?.completedAt, form.status),
       }
       const result = task ? await updateTask(task.id, payload) : await addTask(payload)
       if (result.ok) onClose()

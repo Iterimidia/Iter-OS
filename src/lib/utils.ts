@@ -78,6 +78,49 @@ export function addDaysIso(days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+export function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+/**
+ * Regra única de `paidDate` em função da troca de status financeiro (Fase 7,
+ * correção pós-revisão Codex): entrar em `pago` carimba a data de hoje;
+ * sair de `pago` limpa explicitamente (retorna `null`, nunca `undefined` --
+ * um patch com `undefined` nessa chave é removido do JSON antes de chegar
+ * no Supabase, então nunca limparia o valor de verdade no banco);
+ * permanecer em `pago` preserva a data já existente. Usado tanto no
+ * dropdown rápido de FinancePage quanto em FinancialEntryFormModal, pra não
+ * haver dois lugares reimplementando a mesma regra de formas diferentes.
+ */
+export function resolvePaidDateOnStatusChange(
+  previousStatus: FinancialStatus | undefined,
+  previousPaidDate: string | null | undefined,
+  newStatus: FinancialStatus,
+): string | null {
+  if (newStatus === 'pago') {
+    return previousStatus === 'pago' ? (previousPaidDate ?? todayIso()) : todayIso()
+  }
+  return previousStatus === 'pago' ? null : (previousPaidDate ?? null)
+}
+
+/**
+ * Mesma regra de `resolvePaidDateOnStatusChange`, para `completedAt` em
+ * função da troca de status de tarefa: entrar em `concluido` carimba hoje;
+ * sair de `concluido` limpa explicitamente (`null`); permanecer concluído
+ * preserva a data existente. Usado tanto no Kanban/StatusSelect de
+ * OperationPage quanto em TaskFormModal.
+ */
+export function resolveCompletedAtOnStatusChange(
+  previousStatus: TaskStatus | undefined,
+  previousCompletedAt: string | null | undefined,
+  newStatus: TaskStatus,
+): string | null {
+  if (newStatus === 'concluido') {
+    return previousStatus === 'concluido' ? (previousCompletedAt ?? todayIso()) : todayIso()
+  }
+  return previousStatus === 'concluido' ? null : (previousCompletedAt ?? null)
+}
+
 export function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/)
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { FinancialEntry, FinancialStatus, FinancialType } from '@/types'
 import { useDataStore } from '@/data/store'
-import { FINANCIAL_STATUS_META } from '@/lib/utils'
+import { FINANCIAL_STATUS_META, resolvePaidDateOnStatusChange } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Label, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -59,7 +59,11 @@ export function FinancialEntryFormModal({ open, onClose, type, entry }: Financia
         dueDate: form.dueDate,
         status: form.status,
         recurring: form.recurring,
-        paidDate: form.status === 'pago' ? (entry?.paidDate ?? new Date().toISOString().slice(0, 10)) : undefined,
+        // Regra única (src/lib/utils.ts), igual ao dropdown rápido de
+        // FinancePage: entrar em "pago" carimba hoje, sair de "pago" limpa
+        // paidDate de verdade (null -- undefined nunca chegaria a limpar a
+        // coluna no Supabase), permanecer em "pago" preserva a data.
+        paidDate: resolvePaidDateOnStatusChange(entry?.status, entry?.paidDate, form.status),
       }
       const result = entry ? await updateFinancialEntry(entry.id, payload) : await addFinancialEntry(payload)
       if (result.ok) onClose()
