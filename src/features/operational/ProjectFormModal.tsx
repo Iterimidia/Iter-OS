@@ -37,9 +37,13 @@ export function ProjectFormModal({ open, onClose, project }: ProjectFormModalPro
   const clients = useDataStore((s) => s.clients)
   const users = useDataStore((s) => s.users)
   const [form, setForm] = useState(() => toFormState(project))
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (open) setForm(toFormState(project))
+    if (open) {
+      setForm(toFormState(project))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, open])
 
@@ -52,9 +56,14 @@ export function ProjectFormModal({ open, onClose, project }: ProjectFormModalPro
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.title.trim() || !form.clientId || !form.responsibleId || !form.startDate || !form.endDate) return
-    const result = project ? await updateProject(project.id, form) : await addProject(form)
-    if (result.ok) onClose()
+    if (submitting || !form.title.trim() || !form.clientId || !form.responsibleId || !form.startDate || !form.endDate) return
+    setSubmitting(true)
+    try {
+      const result = project ? await updateProject(project.id, form) : await addProject(form)
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -140,7 +149,9 @@ export function ProjectFormModal({ open, onClose, project }: ProjectFormModalPro
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{project ? 'Salvar alterações' : 'Criar projeto'}</Button>
+          <Button type="submit" loading={submitting}>
+            {project ? 'Salvar alterações' : 'Criar projeto'}
+          </Button>
         </div>
       </form>
     </Modal>

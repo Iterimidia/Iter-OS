@@ -57,6 +57,7 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
   const clients = useDataStore((s) => s.clients)
 
   const [form, setForm] = useState(() => toFormState(user))
+  const [submitting, setSubmitting] = useState(false)
   // Fase 5, prioridade 1: este é um SEGUNDO caminho pra desativar a própria
   // conta (o primeiro é o botão de toggle rápido em TeamPage.tsx, já
   // travado) -- editar o próprio usuário e desligar "Usuário ativo" aqui
@@ -65,7 +66,10 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
   const isEditingSelf = !!user && user.id === currentUser?.id
 
   useEffect(() => {
-    if (open) setForm(toFormState(user))
+    if (open) {
+      setForm(toFormState(user))
+      setSubmitting(false)
+    }
   }, [user, open])
 
   const role = ROLES[form.role]
@@ -108,12 +112,13 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.name.trim() || !form.email.trim()) return
+    if (submitting || !form.name.trim() || !form.email.trim()) return
     if (!user && !form.password.trim()) return
     if (isEditingSelf && !form.active) {
       window.alert('Você não pode desativar a própria conta enquanto estiver conectado com ela.')
       return
     }
+    setSubmitting(true)
 
     const payload = {
       name: form.name,
@@ -138,8 +143,12 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
       authUserId: user?.authUserId ?? null,
     }
 
-    const result = user ? await updateUser(user.id, payload) : await addUser(payload)
-    if (result.ok) onClose()
+    try {
+      const result = user ? await updateUser(user.id, payload) : await addUser(payload)
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -276,7 +285,9 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{user ? 'Salvar alterações' : 'Criar usuário'}</Button>
+          <Button type="submit" loading={submitting}>
+            {user ? 'Salvar alterações' : 'Criar usuário'}
+          </Button>
         </div>
       </form>
     </Modal>

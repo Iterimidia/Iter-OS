@@ -35,9 +35,13 @@ export function FileFormModal({ open, onClose, file }: FileFormModalProps) {
   const updateFile = useDataStore((s) => s.updateFile)
   const clients = useDataStore((s) => s.clients)
   const [form, setForm] = useState(() => toFormState(file))
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (open) setForm(toFormState(file))
+    if (open) {
+      setForm(toFormState(file))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, open])
 
@@ -50,18 +54,23 @@ export function FileFormModal({ open, onClose, file }: FileFormModalProps) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.name.trim() || !form.url.trim()) return
-    const payload = {
-      name: form.name,
-      type: form.type || form.category,
-      category: form.category,
-      clientId: form.clientId || undefined,
-      url: form.url,
-      description: form.description || undefined,
-      visibleToRoles: form.visibleToRoles,
+    if (submitting || !form.name.trim() || !form.url.trim()) return
+    setSubmitting(true)
+    try {
+      const payload = {
+        name: form.name,
+        type: form.type || form.category,
+        category: form.category,
+        clientId: form.clientId || undefined,
+        url: form.url,
+        description: form.description || undefined,
+        visibleToRoles: form.visibleToRoles,
+      }
+      const result = file ? await updateFile(file.id, payload) : await addFile(payload)
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
     }
-    const result = file ? await updateFile(file.id, payload) : await addFile(payload)
-    if (result.ok) onClose()
   }
 
   return (
@@ -126,7 +135,9 @@ export function FileFormModal({ open, onClose, file }: FileFormModalProps) {
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{file ? 'Salvar alterações' : 'Adicionar arquivo'}</Button>
+          <Button type="submit" loading={submitting}>
+            {file ? 'Salvar alterações' : 'Adicionar arquivo'}
+          </Button>
         </div>
       </form>
     </Modal>

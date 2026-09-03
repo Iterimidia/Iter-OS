@@ -40,30 +40,45 @@ export function TaskFormModal({ open, onClose, defaultArea = 'operacional', task
   const appSettings = useDataStore((s) => s.appSettings)
 
   const [form, setForm] = useState(() => toFormState(task, defaultArea))
+  const [submitting, setSubmitting] = useState(false)
   const availableProjects = projects.filter((p) => !form.clientId || p.clientId === form.clientId)
 
   useEffect(() => {
-    if (open) setForm(toFormState(task, defaultArea))
+    if (open) {
+      setForm(toFormState(task, defaultArea))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task, open])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.title.trim() || !form.responsibleId) return
-    const payload = {
-      title: form.title,
-      description: form.description || undefined,
-      clientId: form.clientId || undefined,
-      projectId: form.projectId || undefined,
-      responsibleId: form.responsibleId,
-      dueDate: form.dueDate || undefined,
-      priority: form.priority,
-      status: form.status,
-      type: form.type || 'Geral',
-      area: form.area,
+    if (submitting || !form.title.trim() || !form.responsibleId) return
+    setSubmitting(true)
+    try {
+      const payload = {
+        title: form.title,
+        description: form.description || undefined,
+        clientId: form.clientId || undefined,
+        projectId: form.projectId || undefined,
+        responsibleId: form.responsibleId,
+        dueDate: form.dueDate || undefined,
+        priority: form.priority,
+        status: form.status,
+        type: form.type || 'Geral',
+        area: form.area,
+        // Mesma regra de OperationPage.tsx (changeStatus): marcar "concluído"
+        // por aqui (editar tarefa) precisa carimbar completedAt igual ao
+        // Kanban/StatusSelect fazem -- senão a tarefa concluída por este
+        // caminho não entra em "tarefas concluídas esta semana"
+        // (DirectionPage/TeamPage leem completedAt, não status).
+        completedAt: form.status === 'concluido' ? (task?.completedAt ?? new Date().toISOString().slice(0, 10)) : task?.completedAt,
+      }
+      const result = task ? await updateTask(task.id, payload) : await addTask(payload)
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
     }
-    const result = task ? await updateTask(task.id, payload) : await addTask(payload)
-    if (result.ok) onClose()
   }
 
   return (
@@ -168,7 +183,9 @@ export function TaskFormModal({ open, onClose, defaultArea = 'operacional', task
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{task ? 'Salvar alterações' : 'Criar tarefa'}</Button>
+          <Button type="submit" loading={submitting}>
+            {task ? 'Salvar alterações' : 'Criar tarefa'}
+          </Button>
         </div>
       </form>
     </Modal>

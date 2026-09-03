@@ -84,7 +84,17 @@ export function FinancePage() {
     return (
       <StatusSelect
         value={entry.status}
-        onChange={(status) => updateFinancialEntry(entry.id, { status })}
+        onChange={(status) =>
+          updateFinancialEntry(entry.id, {
+            status,
+            // Mesma regra do FinancialEntryFormModal: marcar "pago" precisa
+            // carimbar paidDate -- sem isso, "Receita recebida" (que soma por
+            // paidDate, caindo pra dueDate só na ausência dele) atribui o
+            // recebimento ao mês de vencimento em vez do mês em que o
+            // pagamento foi de fato confirmado por aqui.
+            ...(status === 'pago' && !entry.paidDate ? { paidDate: new Date().toISOString().slice(0, 10) } : {}),
+          })
+        }
         disabled={!canEditEntry}
         options={STATUS_OPTIONS}
       />

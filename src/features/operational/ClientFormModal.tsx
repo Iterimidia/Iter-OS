@@ -44,9 +44,13 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
 
   const defaults = { plan: appSettings.plans[0] ?? '', userId: users[0]?.id ?? '' }
   const [form, setForm] = useState(() => toFormState(client, defaults))
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (open) setForm(toFormState(client, defaults))
+    if (open) {
+      setForm(toFormState(client, defaults))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, open])
 
@@ -59,17 +63,22 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.name.trim()) return
-    const payload = {
-      ...form,
-      monthlyValue: form.billingType === 'fixo' ? Number(form.monthlyValue) || 0 : 0,
-      commissionPercentage: form.billingType === 'percentual' ? Number(form.commissionPercentage) || 0 : undefined,
+    if (submitting || !form.name.trim()) return
+    setSubmitting(true)
+    try {
+      const payload = {
+        ...form,
+        monthlyValue: form.billingType === 'fixo' ? Number(form.monthlyValue) || 0 : 0,
+        commissionPercentage: form.billingType === 'percentual' ? Number(form.commissionPercentage) || 0 : undefined,
+      }
+      const result = client ? await updateClient(client.id, payload) : await addClient(payload)
+      // Só fecha se a persistência realmente confirmou — em falha, o alert
+      // (disparado pela própria action) já avisa, e o formulário continua
+      // aberto com os dados preenchidos, em vez de sumir como se tivesse dado certo.
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
     }
-    const result = client ? await updateClient(client.id, payload) : await addClient(payload)
-    // Só fecha se a persistência realmente confirmou — em falha, o alert
-    // (disparado pela própria action) já avisa, e o formulário continua
-    // aberto com os dados preenchidos, em vez de sumir como se tivesse dado certo.
-    if (result.ok) onClose()
   }
 
   return (
@@ -197,7 +206,9 @@ export function ClientFormModal({ open, onClose, client }: ClientFormModalProps)
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{client ? 'Salvar alterações' : 'Criar cliente'}</Button>
+          <Button type="submit" loading={submitting}>
+            {client ? 'Salvar alterações' : 'Criar cliente'}
+          </Button>
         </div>
       </form>
     </Modal>

@@ -48,6 +48,7 @@ export function CommercialPage() {
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
   const [form, setForm] = useState(() => toFormState(undefined))
   const [query, setQuery] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const canCreate = canPerformAction(user, 'criar')
   const canEditLead = canPerformAction(user, 'editar')
@@ -55,7 +56,10 @@ export function CommercialPage() {
   const modalIsOpen = modalOpen || editingLead !== null
 
   useEffect(() => {
-    if (modalIsOpen) setForm(toFormState(editingLead ?? undefined))
+    if (modalIsOpen) {
+      setForm(toFormState(editingLead ?? undefined))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingLead, modalIsOpen])
 
@@ -92,28 +96,35 @@ export function CommercialPage() {
     setEditingLead(null)
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.companyName.trim()) return
-    const payload = {
-      companyName: form.companyName,
-      responsibleName: form.responsibleName,
-      contact: form.contact,
-      instagramOrSite: form.instagramOrSite || undefined,
-      segment: form.segment,
-      origin: form.origin,
-      serviceInterest: form.serviceInterest,
-      estimatedValue: Number(form.estimatedValue) || 0,
-      nextAction: form.nextAction || undefined,
-      followUpDate: form.followUpDate || undefined,
-      notes: form.notes || undefined,
+    if (submitting || !form.companyName.trim()) return
+    setSubmitting(true)
+    try {
+      const payload = {
+        companyName: form.companyName,
+        responsibleName: form.responsibleName,
+        contact: form.contact,
+        instagramOrSite: form.instagramOrSite || undefined,
+        segment: form.segment,
+        origin: form.origin,
+        serviceInterest: form.serviceInterest,
+        estimatedValue: Number(form.estimatedValue) || 0,
+        nextAction: form.nextAction || undefined,
+        followUpDate: form.followUpDate || undefined,
+        notes: form.notes || undefined,
+      }
+      // Antes disto, o modal fechava incondicionalmente aqui, sem esperar a
+      // resposta do Supabase -- em falha (rede, RLS), a tela dava a
+      // impressão de que o lead tinha sido salvo, e os dados digitados eram
+      // perdidos junto com o modal. Agora segue o mesmo padrão de
+      // ClientFormModal/ProjectFormModal/etc: só fecha se a persistência
+      // realmente confirmou.
+      const result = editingLead ? await updateLead(editingLead.id, payload) : await addLead({ ...payload, status: 'lead' })
+      if (result.ok) closeLeadModal()
+    } finally {
+      setSubmitting(false)
     }
-    if (editingLead) {
-      updateLead(editingLead.id, payload)
-    } else {
-      addLead({ ...payload, status: 'lead' })
-    }
-    closeLeadModal()
   }
 
   return (
@@ -311,7 +322,9 @@ export function CommercialPage() {
             <Button type="button" variant="secondary" onClick={closeLeadModal}>
               Cancelar
             </Button>
-            <Button type="submit">{editingLead ? 'Salvar alterações' : 'Criar lead'}</Button>
+            <Button type="submit" loading={submitting}>
+              {editingLead ? 'Salvar alterações' : 'Criar lead'}
+            </Button>
           </div>
         </form>
       </Modal>

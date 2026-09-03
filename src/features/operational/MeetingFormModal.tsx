@@ -27,22 +27,31 @@ export function MeetingFormModal({ open, onClose, defaultDate, event }: MeetingF
   const clients = useDataStore((s) => s.clients)
 
   const [form, setForm] = useState(() => toFormState(event, defaultDate))
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (open) setForm(toFormState(event, defaultDate))
+    if (open) {
+      setForm(toFormState(event, defaultDate))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, open])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.title.trim() || !form.date) return
-    const payload = {
-      title: form.title,
-      date: form.date,
-      clientId: form.clientId || undefined,
+    if (submitting || !form.title.trim() || !form.date) return
+    setSubmitting(true)
+    try {
+      const payload = {
+        title: form.title,
+        date: form.date,
+        clientId: form.clientId || undefined,
+      }
+      const result = event ? await updateCalendarEvent(event.id, payload) : await addCalendarEvent({ ...payload, type: 'reuniao', scope: 'operacional' })
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
     }
-    const result = event ? await updateCalendarEvent(event.id, payload) : await addCalendarEvent({ ...payload, type: 'reuniao', scope: 'operacional' })
-    if (result.ok) onClose()
   }
 
   return (
@@ -71,7 +80,9 @@ export function MeetingFormModal({ open, onClose, defaultDate, event }: MeetingF
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{event ? 'Salvar alterações' : 'Criar reunião'}</Button>
+          <Button type="submit" loading={submitting}>
+            {event ? 'Salvar alterações' : 'Criar reunião'}
+          </Button>
         </div>
       </form>
     </Modal>

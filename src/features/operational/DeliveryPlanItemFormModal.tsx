@@ -26,19 +26,28 @@ export function DeliveryPlanItemFormModal({ open, onClose, clientId, item }: Del
   const updateDeliveryPlanItem = useDataStore((s) => s.updateDeliveryPlanItem)
 
   const [form, setForm] = useState(() => toFormState(item))
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (open) setForm(toFormState(item))
+    if (open) {
+      setForm(toFormState(item))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, open])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     const quantity = Number(form.monthlyQuantity)
-    if (!form.label.trim() || !quantity || quantity < 1) return
-    const payload = { label: form.label.trim(), monthlyQuantity: Math.round(quantity) }
-    const result = item ? await updateDeliveryPlanItem(item.id, payload) : await addDeliveryPlanItem({ ...payload, clientId })
-    if (result.ok) onClose()
+    if (submitting || !form.label.trim() || !quantity || quantity < 1) return
+    setSubmitting(true)
+    try {
+      const payload = { label: form.label.trim(), monthlyQuantity: Math.round(quantity) }
+      const result = item ? await updateDeliveryPlanItem(item.id, payload) : await addDeliveryPlanItem({ ...payload, clientId })
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -77,7 +86,9 @@ export function DeliveryPlanItemFormModal({ open, onClose, clientId, item }: Del
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{item ? 'Salvar alterações' : 'Adicionar item'}</Button>
+          <Button type="submit" loading={submitting}>
+            {item ? 'Salvar alterações' : 'Adicionar item'}
+          </Button>
         </div>
       </form>
     </Modal>

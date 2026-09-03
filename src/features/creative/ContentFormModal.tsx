@@ -37,33 +37,42 @@ export function ContentFormModal({ open, onClose, item }: ContentFormModalProps)
   const users = useDataStore((s) => s.users)
 
   const [form, setForm] = useState(() => toFormState(item))
+  const [submitting, setSubmitting] = useState(false)
   const availableProjects = projects.filter((p) => !form.clientId || p.clientId === form.clientId)
 
   useEffect(() => {
-    if (open) setForm(toFormState(item))
+    if (open) {
+      setForm(toFormState(item))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, open])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.title.trim() || !form.clientId || !form.responsibleId) return
-    const payload = {
-      clientId: form.clientId,
-      projectId: form.projectId || undefined,
-      format: form.format,
-      theme: form.theme,
-      title: form.title,
-      responsibleId: form.responsibleId,
-      dueDate: form.dueDate || undefined,
-      publishDate: form.publishDate || undefined,
-      caption: form.caption || undefined,
-      script: form.script || undefined,
-      fileUrl: form.fileUrl || undefined,
+    if (submitting || !form.title.trim() || !form.clientId || !form.responsibleId) return
+    setSubmitting(true)
+    try {
+      const payload = {
+        clientId: form.clientId,
+        projectId: form.projectId || undefined,
+        format: form.format,
+        theme: form.theme,
+        title: form.title,
+        responsibleId: form.responsibleId,
+        dueDate: form.dueDate || undefined,
+        publishDate: form.publishDate || undefined,
+        caption: form.caption || undefined,
+        script: form.script || undefined,
+        fileUrl: form.fileUrl || undefined,
+      }
+      const result = item
+        ? await updateContentItem(item.id, payload)
+        : await addContentItem({ ...payload, status: 'a_fazer', internalApproval: false, clientApproval: false })
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
     }
-    const result = item
-      ? await updateContentItem(item.id, payload)
-      : await addContentItem({ ...payload, status: 'a_fazer', internalApproval: false, clientApproval: false })
-    if (result.ok) onClose()
   }
 
   return (
@@ -146,7 +155,9 @@ export function ContentFormModal({ open, onClose, item }: ContentFormModalProps)
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{item ? 'Salvar alterações' : 'Criar peça'}</Button>
+          <Button type="submit" loading={submitting}>
+            {item ? 'Salvar alterações' : 'Criar peça'}
+          </Button>
         </div>
       </form>
     </Modal>

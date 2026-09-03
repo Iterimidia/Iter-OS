@@ -33,30 +33,39 @@ export function FinancialEntryFormModal({ open, onClose, type, entry }: Financia
   const updateFinancialEntry = useDataStore((s) => s.updateFinancialEntry)
   const clients = useDataStore((s) => s.clients)
   const [form, setForm] = useState(() => toFormState(entry))
+  const [submitting, setSubmitting] = useState(false)
 
   const resolvedType = entry?.type ?? type
 
   useEffect(() => {
-    if (open) setForm(toFormState(entry))
+    if (open) {
+      setForm(toFormState(entry))
+      setSubmitting(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry, open])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.description.trim() || !form.dueDate) return
-    const payload = {
-      type: resolvedType,
-      category: form.category || 'Outros',
-      description: form.description,
-      clientId: form.clientId || undefined,
-      amount: Number(form.amount) || 0,
-      dueDate: form.dueDate,
-      status: form.status,
-      recurring: form.recurring,
-      paidDate: form.status === 'pago' ? (entry?.paidDate ?? new Date().toISOString().slice(0, 10)) : undefined,
+    if (submitting || !form.description.trim() || !form.dueDate) return
+    setSubmitting(true)
+    try {
+      const payload = {
+        type: resolvedType,
+        category: form.category || 'Outros',
+        description: form.description,
+        clientId: form.clientId || undefined,
+        amount: Number(form.amount) || 0,
+        dueDate: form.dueDate,
+        status: form.status,
+        recurring: form.recurring,
+        paidDate: form.status === 'pago' ? (entry?.paidDate ?? new Date().toISOString().slice(0, 10)) : undefined,
+      }
+      const result = entry ? await updateFinancialEntry(entry.id, payload) : await addFinancialEntry(payload)
+      if (result.ok) onClose()
+    } finally {
+      setSubmitting(false)
     }
-    const result = entry ? await updateFinancialEntry(entry.id, payload) : await addFinancialEntry(payload)
-    if (result.ok) onClose()
   }
 
   return (
@@ -121,7 +130,9 @@ export function FinancialEntryFormModal({ open, onClose, type, entry }: Financia
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit">{entry ? 'Salvar alterações' : 'Salvar'}</Button>
+          <Button type="submit" loading={submitting}>
+            {entry ? 'Salvar alterações' : 'Salvar'}
+          </Button>
         </div>
       </form>
     </Modal>
