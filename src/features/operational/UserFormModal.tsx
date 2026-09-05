@@ -23,7 +23,6 @@ interface UserFormModalProps {
 interface UserFormState {
   name: string
   email: string
-  password: string
   jobTitle: string
   role: RoleId
   active: boolean
@@ -38,7 +37,6 @@ function toFormState(user?: User): UserFormState {
   return {
     name: user?.name ?? '',
     email: user?.email ?? '',
-    password: '',
     jobTitle: user?.jobTitle ?? '',
     role: user?.role ?? 'usuario_limitado',
     active: user?.active ?? true,
@@ -113,7 +111,6 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (submitting || !form.name.trim() || !form.email.trim()) return
-    if (!user && !form.password.trim()) return
     if (isEditingSelf && !form.active) {
       window.alert('Você não pode desativar a própria conta enquanto estiver conectado com ela.')
       return
@@ -123,11 +120,6 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
     const payload = {
       name: form.name,
       email: form.email,
-      // A API nunca retorna `password` (Fase 2, B4b) — se o campo ficou em
-      // branco ao editar, não manda a chave, pra não sobrescrever a senha
-      // legada existente com vazio. Criar usuário sempre exige senha (guard
-      // acima), então esse spread nunca fica de fora nesse caso.
-      ...(form.password.trim() ? { password: form.password } : {}),
       role: form.role,
       jobTitle: form.jobTitle,
       avatarInitials: getInitials(form.name),
@@ -176,17 +168,6 @@ export function UserFormModal({ open, onClose, user }: UserFormModalProps) {
                 </option>
               ))}
             </Select>
-          </div>
-          <div>
-            <Label htmlFor="password">Senha {user && '(deixe em branco para manter)'}</Label>
-            <Input
-              id="password"
-              type="text"
-              required={!user}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder={user ? '••••••••' : 'Defina uma senha'}
-            />
           </div>
           <div className="flex items-end justify-between rounded-lg border border-iter-border px-3 py-2.5">
             <span className="text-xs font-medium text-iter-muted">

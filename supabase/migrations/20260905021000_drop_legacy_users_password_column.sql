@@ -1,0 +1,18 @@
+-- Fase 8: remove definitivamente a coluna legada `public.users.password`,
+-- agora que os 5 usuários reais de produção (Daniel, Raylhane, Ester,
+-- Melissa, Renato) estão migrados para Supabase Auth real, vinculados via
+-- `auth_user_id`, e validados (login real confirmado para o admin; RLS
+-- simulada confirmando perfil/permissões/dados para os demais).
+--
+-- Pré-condição verificada antes desta migration: nenhum código do frontend
+-- lê ou escreve mais `password` (a coluna já não tinha GRANT de SELECT para
+-- `authenticated` desde a Fase 2/B4b, mas o formulário de criar/editar
+-- usuário — src/features/operational/UserFormModal.tsx — ainda escrevia
+-- nela e EXIGIA senha pra criar um usuário novo; esse campo foi removido do
+-- formulário, do tipo `User` e do payload de addUser/updateUser antes desta
+-- migration, com typecheck/lint/test/build verificados depois da remoção).
+--
+-- Não apaga nenhum usuário nem qualquer outro dado -- só a coluna legada,
+-- que não tem mais nenhum papel na autenticação real (Supabase Auth via
+-- auth.users é a única fonte de identidade/senha desde a Fase 3).
+alter table public.users drop column if exists password;

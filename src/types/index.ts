@@ -41,8 +41,6 @@ export interface User {
   id: string
   name: string
   email: string
-  /** Legado — a API nunca mais retorna esta coluna em SELECT (Fase 2, B4b). Só existe ao criar/editar um usuário pelo formulário interno. */
-  password?: string
   role: RoleId
   jobTitle: string
   avatarInitials: string
