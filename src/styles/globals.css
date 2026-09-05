@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Tokens de cor da Iter Mídia — formato "R G B" (sem vírgulas) para permitir
+ * opacidade via Tailwind (rgb(var(--x) / <alpha-value>)). Ver src/lib/theme.ts
+ * para a versão hex dos mesmos tokens e para a origem da paleta (marca oficial
+ * da Iter Mídia, fundo off-white ~90% + cores da marca para botões/dados).
+ * Ajuste os dois arquivos juntos.
+ */
+:root {
+  --iter-primary: 156 61 135;
+  --iter-primary-hover: 131 52 112;
+  --iter-secondary: 31 110 144;
+  --iter-accent: 77 46 128;
+  --iter-tertiary: 102 103 168;
+
+  --iter-background: 243 240 232;
+  --iter-background-alt: 237 234 224;
+  --iter-surface: 255 255 255;
+  --iter-surface-alt: 245 243 238;
+  --iter-surface-hover: 239 237 230;
+  --iter-border: 227 224 216;
+  --iter-border-soft: 236 233 225;
+
+  --iter-text: 42 47 102;
+  --iter-text-muted: 91 95 130;
+  --iter-text-faint: 118 121 146;
+
+  --iter-success: 31 122 76;
+  --iter-warning: 168 95 22;
+  --iter-danger: 194 59 71;
+  --iter-info: 10 85 128;
+}
+
+@layer base {
+  * {
+    @apply border-iter-border;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-iter-bg text-iter-text antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    @apply bg-iter-primary/20 text-iter-text;
+  }
+
+  /* scrollbar discreto, no tom do app */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--iter-border));
+    border-radius: 999px;
+    border: 2px solid rgb(var(--iter-background));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--iter-text-faint));
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-iter-surface/70 backdrop-blur-xl border border-iter-border/80;
+  }
+
+  .card-surface {
+    @apply bg-iter-surface border border-iter-border rounded-2xl shadow-card;
+  }
+
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-iter-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-iter-bg;
+  }
+}
+
+/* ---- Impressão / exportação de relatórios ---- */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #2a2f66 !important;
+  }
+
+  .print-area {
+    display: block !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

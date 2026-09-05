@@ -1,0 +1,53 @@
+name: E2E (staging)
+
+# Roda contra o Iter OS Staging real (Supabase), não localStorage/mock --
+# então NÃO dispara automaticamente em toda PR: exige credenciais reais
+# (perfis de teste fictícios do staging) e faz login/logout, cria e exclui
+# uma reunião de teste, etc. Fica disponível sob demanda ("Run workflow")
+# pra quem tiver acesso de escrita ao repositório.
+#
+# Requer os seguintes Repository Secrets (Settings -> Secrets and variables
+# -> Actions), nenhum valor incluído aqui -- ver .env.e2e.example na raiz:
+#   E2E_BASE_URL, E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD,
+#   E2E_FINANCEIRO_EMAIL, E2E_FINANCEIRO_PASSWORD,
+#   E2E_INATIVO_EMAIL, E2E_INATIVO_PASSWORD
+# Se algum não estiver configurado, o job falha de forma explícita ao rodar
+# (nunca com um valor inventado) -- configure-os antes de disparar.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  e2e:
+    name: Playwright contra o Iter OS Staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Instalar navegador do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Rodar testes E2E
+        run: npm run test:e2e
+        env:
+          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_FINANCEIRO_EMAIL: ${{ secrets.E2E_FINANCEIRO_EMAIL }}
+          E2E_FINANCEIRO_PASSWORD: ${{ secrets.E2E_FINANCEIRO_PASSWORD }}
+          E2E_INATIVO_EMAIL: ${{ secrets.E2E_INATIVO_EMAIL }}
+          E2E_INATIVO_PASSWORD: ${{ secrets.E2E_INATIVO_PASSWORD }}
+
+      - name: Publicar relatório em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
