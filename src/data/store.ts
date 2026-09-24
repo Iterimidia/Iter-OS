@@ -33,6 +33,7 @@ import type {
 } from '@/types'
 import { supabase } from '@/lib/supabaseClient'
 import { generateId } from '@/lib/utils'
+import { resolveContentStatusStamps } from '@/lib/contentWorkflow'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
@@ -829,10 +830,15 @@ export const useDataStore = create<DataState>()((set, get) => ({
   removeLead: (id) => removeRow<Lead>(set, get, 'leads', 'leads', 'excluir lead', id),
 
   addContentItem: (data) => {
-    const item: ContentItem = { ...data, id: generateId('cnt'), createdAt: todayIso() }
+    const item: ContentItem = { ...data, id: generateId('cnt'), createdAt: todayIso(), updatedAt: new Date().toISOString() }
     return createRow(set, 'contentItems', 'content_items', 'criar peça', item)
   },
-  updateContentItem: (id, patch) => updateRow<ContentItem>(set, get, 'contentItems', 'content_items', 'atualizar peça', id, patch),
+  updateContentItem: (id, patch) => {
+    const previous = get().contentItems.find((c) => c.id === id)
+    const stamps = patch.status && patch.status !== previous?.status ? resolveContentStatusStamps(patch.status) : {}
+    const fullPatch: Partial<ContentItem> = { ...patch, ...stamps, updatedAt: new Date().toISOString() }
+    return updateRow<ContentItem>(set, get, 'contentItems', 'content_items', 'atualizar peça', id, fullPatch)
+  },
   removeContentItem: (id) => removeRow<ContentItem>(set, get, 'contentItems', 'content_items', 'excluir peça', id),
 
   addFile: (data) => {

@@ -6,9 +6,10 @@ import type {
   BillingType,
   Client,
   ClientStatus,
+  ContentChannel,
   ContentFormat,
+  ContentStatus,
   DeliveryUnitStatus,
-  DemandStatus,
   FinancialStatus,
   IntegrationStatusKind,
   LeadStatus,
@@ -154,15 +155,29 @@ export const TASK_STATUS_META: Record<TaskStatus, StatusMeta> = {
   concluido: { label: 'Concluído', tone: 'success' },
 }
 
-export const DEMAND_STATUS_META: Record<DemandStatus, StatusMeta> = {
-  a_fazer: { label: 'A fazer', tone: 'neutral' },
+export const CONTENT_STATUS_META: Record<ContentStatus, StatusMeta> = {
+  planejado: { label: 'Planejado', tone: 'neutral' },
+  briefing_pronto: { label: 'Briefing pronto', tone: 'info' },
   em_producao: { label: 'Em produção', tone: 'info' },
-  em_revisao_interna: { label: 'Em revisão interna', tone: 'warning' },
-  ajustes_necessarios: { label: 'Ajustes necessários', tone: 'danger' },
-  aguardando_cliente: { label: 'Aguardando cliente', tone: 'warning' },
+  revisao_criativa: { label: 'Revisão criativa', tone: 'warning' },
+  aguardando_aprovacao: { label: 'Aguardando aprovação', tone: 'warning' },
+  em_ajustes: { label: 'Em ajustes', tone: 'danger' },
   aprovado: { label: 'Aprovado', tone: 'success' },
+  programado: { label: 'Programado', tone: 'primary' },
   publicado: { label: 'Publicado', tone: 'primary' },
+  bloqueado: { label: 'Bloqueado', tone: 'danger' },
+  cancelado: { label: 'Cancelado', tone: 'neutral' },
 }
+
+export const CONTENT_CHANNEL_LABELS: Record<ContentChannel, string> = {
+  instagram: 'Instagram',
+  linkedin: 'LinkedIn',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  kwai: 'Kwai',
+}
+
+export const CONTENT_CHANNEL_ORDER: ContentChannel[] = ['instagram', 'linkedin', 'tiktok', 'youtube', 'kwai']
 
 export const LEAD_STATUS_META: Record<LeadStatus, StatusMeta> = {
   lead: { label: 'Lead', tone: 'neutral' },
@@ -325,12 +340,17 @@ export function formatMonthLabel(month: string): string {
   return format(new Date(year, monthNum - 1, 1), "MMMM 'de' yyyy", { locale: ptBR })
 }
 
-export const DEMAND_STATUS_ORDER: DemandStatus[] = [
-  'a_fazer',
+/** Sequência normal do pipeline (spec §7); bloqueado/cancelado são exceções, ficam ao final. */
+export const CONTENT_STATUS_ORDER: ContentStatus[] = [
+  'planejado',
+  'briefing_pronto',
   'em_producao',
-  'em_revisao_interna',
-  'ajustes_necessarios',
-  'aguardando_cliente',
+  'revisao_criativa',
+  'aguardando_aprovacao',
+  'em_ajustes',
   'aprovado',
+  'programado',
   'publicado',
+  'bloqueado',
+  'cancelado',
 ]

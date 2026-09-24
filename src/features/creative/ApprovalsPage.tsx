@@ -1,16 +1,16 @@
-import type { DemandStatus } from '@/types'
+import type { ContentStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction, getAccessibleClients } from '@/lib/permissions'
-import { CONTENT_FORMAT_LABELS, DEMAND_STATUS_META } from '@/lib/utils'
+import { CONTENT_FORMAT_LABELS, CONTENT_STATUS_META } from '@/lib/utils'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 
-const GROUPS: { status: DemandStatus; title: string; hint: string }[] = [
-  { status: 'em_revisao_interna', title: 'Aguardando revisão interna', hint: 'Equipe criativa revisa antes de enviar ao cliente.' },
-  { status: 'aguardando_cliente', title: 'Aguardando aprovação do cliente', hint: 'Já revisado internamente, esperando o cliente.' },
-  { status: 'ajustes_necessarios', title: 'Ajustes solicitados', hint: 'Precisa de retrabalho antes de seguir.' },
+const GROUPS: { status: ContentStatus; title: string; hint: string }[] = [
+  { status: 'revisao_criativa', title: 'Aguardando revisão interna', hint: 'Equipe criativa revisa antes de enviar ao cliente.' },
+  { status: 'aguardando_aprovacao', title: 'Aguardando aprovação do cliente', hint: 'Já revisado internamente, esperando o cliente.' },
+  { status: 'em_ajustes', title: 'Ajustes solicitados', hint: 'Precisa de retrabalho antes de seguir.' },
   { status: 'aprovado', title: 'Aprovado', hint: 'Pronto para publicar.' },
 ]
 
@@ -41,7 +41,7 @@ export function ApprovalsPage() {
                 <h3 className="text-sm font-semibold text-iter-text">{group.title}</h3>
                 <p className="text-xs text-iter-muted">{group.hint}</p>
               </div>
-              <Badge tone={DEMAND_STATUS_META[group.status].tone}>{groupItems.length}</Badge>
+              <Badge tone={CONTENT_STATUS_META[group.status].tone}>{groupItems.length}</Badge>
             </div>
 
             {groupItems.length === 0 ? (
@@ -58,27 +58,23 @@ export function ApprovalsPage() {
                     </div>
                     {canApprove && (
                       <div className="flex flex-wrap gap-2">
-                        {group.status === 'em_revisao_interna' && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => updateContentItem(item.id, { internalApproval: true, status: 'aguardando_cliente' })}
-                          >
+                        {group.status === 'revisao_criativa' && (
+                          <Button size="sm" variant="secondary" onClick={() => updateContentItem(item.id, { status: 'aguardando_aprovacao' })}>
                             Aprovar internamente
                           </Button>
                         )}
-                        {group.status === 'aguardando_cliente' && (
+                        {group.status === 'aguardando_aprovacao' && (
                           <>
-                            <Button size="sm" variant="secondary" onClick={() => updateContentItem(item.id, { status: 'ajustes_necessarios' })}>
+                            <Button size="sm" variant="secondary" onClick={() => updateContentItem(item.id, { status: 'em_ajustes' })}>
                               Pedir ajustes
                             </Button>
-                            <Button size="sm" onClick={() => updateContentItem(item.id, { clientApproval: true, status: 'aprovado' })}>
+                            <Button size="sm" onClick={() => updateContentItem(item.id, { status: 'aprovado' })}>
                               Cliente aprovou
                             </Button>
                           </>
                         )}
-                        {group.status === 'ajustes_necessarios' && (
-                          <Button size="sm" variant="secondary" onClick={() => updateContentItem(item.id, { status: 'em_revisao_interna' })}>
+                        {group.status === 'em_ajustes' && (
+                          <Button size="sm" variant="secondary" onClick={() => updateContentItem(item.id, { status: 'revisao_criativa' })}>
                             Reenviar para revisão
                           </Button>
                         )}

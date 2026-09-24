@@ -33,7 +33,9 @@ export function DirectionPage() {
 
   const seteDiasAtras = addDaysIso(-7)
   const concluidasSemana = tasks.filter((t) => t.completedAt && t.completedAt >= seteDiasAtras)
-  const publicadosSemana = contentItems.filter((c) => c.publishDate && c.publishDate >= seteDiasAtras && c.publishDate <= todayIso)
+  const publicadosSemana = contentItems.filter(
+    (c) => c.plannedPublishDate && c.plannedPublishDate >= seteDiasAtras && c.plannedPublishDate <= todayIso,
+  )
   const leadsNovosSemana = leads.filter((l) => l.createdAt >= seteDiasAtras)
   const tarefasCriticasAtrasadas = tarefasAtrasadas.filter((t) => t.priority === 'urgente' || t.priority === 'alta')
 

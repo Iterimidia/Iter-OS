@@ -20,9 +20,9 @@ function toFormState(item: ContentItem | undefined) {
     format: item?.format ?? ('post_estatico' as ContentFormat),
     theme: item?.theme ?? '',
     title: item?.title ?? '',
-    responsibleId: item?.responsibleId ?? '',
-    dueDate: item?.dueDate ?? '',
-    publishDate: item?.publishDate ?? '',
+    editorialResponsibleId: item?.editorialResponsibleId ?? '',
+    internalDueDate: item?.internalDueDate ?? '',
+    plannedPublishDate: item?.plannedPublishDate ?? '',
     caption: item?.caption ?? '',
     script: item?.script ?? '',
     fileUrl: item?.fileUrl ?? '',
@@ -50,7 +50,7 @@ export function ContentFormModal({ open, onClose, item }: ContentFormModalProps)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (submitting || !form.title.trim() || !form.clientId || !form.responsibleId) return
+    if (submitting || !form.title.trim() || !form.clientId || !form.editorialResponsibleId) return
     setSubmitting(true)
     try {
       const payload = {
@@ -59,16 +59,14 @@ export function ContentFormModal({ open, onClose, item }: ContentFormModalProps)
         format: form.format,
         theme: form.theme,
         title: form.title,
-        responsibleId: form.responsibleId,
-        dueDate: form.dueDate || undefined,
-        publishDate: form.publishDate || undefined,
+        editorialResponsibleId: form.editorialResponsibleId,
+        internalDueDate: form.internalDueDate || undefined,
+        plannedPublishDate: form.plannedPublishDate || undefined,
         caption: form.caption || undefined,
         script: form.script || undefined,
         fileUrl: form.fileUrl || undefined,
       }
-      const result = item
-        ? await updateContentItem(item.id, payload)
-        : await addContentItem({ ...payload, status: 'a_fazer', internalApproval: false, clientApproval: false })
+      const result = item ? await updateContentItem(item.id, payload) : await addContentItem({ ...payload, status: 'planejado' })
       if (result.ok) onClose()
     } finally {
       setSubmitting(false)
@@ -120,8 +118,13 @@ export function ContentFormModal({ open, onClose, item }: ContentFormModalProps)
             <Input id="theme" value={form.theme} onChange={(e) => setForm({ ...form, theme: e.target.value })} />
           </div>
           <div>
-            <Label htmlFor="responsibleId">Responsável</Label>
-            <Select id="responsibleId" required value={form.responsibleId} onChange={(e) => setForm({ ...form, responsibleId: e.target.value })}>
+            <Label htmlFor="editorialResponsibleId">Responsável editorial</Label>
+            <Select
+              id="editorialResponsibleId"
+              required
+              value={form.editorialResponsibleId}
+              onChange={(e) => setForm({ ...form, editorialResponsibleId: e.target.value })}
+            >
               <option value="">Selecione</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -131,12 +134,22 @@ export function ContentFormModal({ open, onClose, item }: ContentFormModalProps)
             </Select>
           </div>
           <div>
-            <Label htmlFor="dueDate">Prazo de produção</Label>
-            <Input id="dueDate" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+            <Label htmlFor="internalDueDate">Prazo de produção</Label>
+            <Input
+              id="internalDueDate"
+              type="date"
+              value={form.internalDueDate}
+              onChange={(e) => setForm({ ...form, internalDueDate: e.target.value })}
+            />
           </div>
           <div>
-            <Label htmlFor="publishDate">Data de publicação</Label>
-            <Input id="publishDate" type="date" value={form.publishDate} onChange={(e) => setForm({ ...form, publishDate: e.target.value })} />
+            <Label htmlFor="plannedPublishDate">Data de publicação</Label>
+            <Input
+              id="plannedPublishDate"
+              type="date"
+              value={form.plannedPublishDate}
+              onChange={(e) => setForm({ ...form, plannedPublishDate: e.target.value })}
+            />
           </div>
           <div>
             <Label htmlFor="fileUrl">Link do arquivo</Label>

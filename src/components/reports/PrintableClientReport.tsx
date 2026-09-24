@@ -2,7 +2,7 @@ import { useDataStore } from '@/data/store'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import {
   CLIENT_STATUS_META,
-  DEMAND_STATUS_META,
+  CONTENT_STATUS_META,
   FINANCIAL_STATUS_META,
   formatClientBilling,
   formatCurrency,
@@ -72,7 +72,7 @@ export function PrintableClientReport({ clientId }: { clientId: string }) {
       <PrintSection title="Conteúdos Vinculados">
         <PrintTable
           headers={['Título', 'Formato', 'Status']}
-          rows={contentItems.map((c) => [c.title, c.format, DEMAND_STATUS_META[c.status].label])}
+          rows={contentItems.map((c) => [c.title, c.format, CONTENT_STATUS_META[c.status].label])}
         />
       </PrintSection>
 

@@ -28,14 +28,16 @@ export function CreativePanelPage() {
   const tarefasSemana = tasks.filter((t) => t.dueDate && t.dueDate >= todayIso && t.dueDate <= em7dias)
   const tarefasAtrasadas = tasks.filter((t) => isOverdue(t.dueDate, ['concluido', 'publicado'].includes(t.status)))
   const emProducao = items.filter((i) => i.status === 'em_producao')
-  const aguardandoRevisao = items.filter((i) => i.status === 'em_revisao_interna')
-  const aguardandoCliente = items.filter((i) => i.status === 'aguardando_cliente')
+  const aguardandoRevisao = items.filter((i) => i.status === 'revisao_criativa')
+  const aguardandoCliente = items.filter((i) => i.status === 'aguardando_aprovacao')
 
   const creativeUsers = users.filter((u) => u.role === 'criativo' || u.role === 'gestao_criativa')
+  // Carga de produção criativa é medida pela Executora, não pelo Responsável
+  // editorial (decisão explícita — Conteúdo 2.0 separa os dois papéis).
   const workload = creativeUsers.map((u) => ({
     user: u,
     count:
-      items.filter((i) => i.responsibleId === u.id && i.status !== 'publicado').length +
+      items.filter((i) => i.executorId === u.id && i.status !== 'publicado').length +
       tasks.filter((t) => t.responsibleId === u.id && !['concluido', 'publicado'].includes(t.status)).length,
   }))
 

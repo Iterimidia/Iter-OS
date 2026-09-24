@@ -35,10 +35,8 @@ function makePendingContentItem(overrides: Partial<ContentItem> = {}): ContentIt
     format: 'post_estatico',
     theme: 'Tema',
     title: 'Peça em revisão',
-    responsibleId: 'u',
-    status: 'em_revisao_interna',
-    internalApproval: false,
-    clientApproval: false,
+    editorialResponsibleId: 'u',
+    status: 'revisao_criativa',
     createdAt: '2026-01-01',
     ...overrides,
   }
@@ -110,7 +108,7 @@ describe('ApprovalsPage — gate de aprovação exige aprovar E editar', () => {
     const { updateContentItem } = renderWithUser(['aprovar', 'editar'])
     const button = screen.getByRole('button', { name: 'Aprovar internamente' })
     button.click()
-    expect(updateContentItem).toHaveBeenCalledWith('cnt_1', { internalApproval: true, status: 'aguardando_cliente' })
+    expect(updateContentItem).toHaveBeenCalledWith('cnt_1', { status: 'aguardando_aprovacao' })
   })
 
   it('perfil admin (tem as duas por ser admin) continua com o caminho positivo funcionando', () => {

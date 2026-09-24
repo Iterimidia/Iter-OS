@@ -80,8 +80,8 @@ export function GeneralDashboardPage() {
   const conteudosProducao = contentItems.filter((c) => c.status === 'em_producao')
   const reelsPendentes = contentItems.filter((c) => c.format === 'reel' && c.status !== 'publicado')
   const carrosseisPendentes = contentItems.filter((c) => c.format === 'carrossel' && c.status !== 'publicado')
-  const aprovacoesInternas = contentItems.filter((c) => c.status === 'em_revisao_interna')
-  const aprovacoesCliente = contentItems.filter((c) => c.status === 'aguardando_cliente')
+  const aprovacoesInternas = contentItems.filter((c) => c.status === 'revisao_criativa')
+  const aprovacoesCliente = contentItems.filter((c) => c.status === 'aguardando_aprovacao')
   const tarefasCriativasAtrasadas = tasks.filter(
     (t) => t.area === 'criativo' && isOverdue(t.dueDate, ['concluido', 'publicado'].includes(t.status)),
   )

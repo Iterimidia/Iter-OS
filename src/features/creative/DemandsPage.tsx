@@ -1,16 +1,16 @@
 import { Trash2 } from 'lucide-react'
-import type { ContentItem, DemandStatus } from '@/types'
+import type { ContentItem, ContentStatus } from '@/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canPerformAction, getAccessibleClients } from '@/lib/permissions'
-import { CONTENT_FORMAT_LABELS, DEMAND_STATUS_META, DEMAND_STATUS_ORDER, formatDate } from '@/lib/utils'
+import { CONTENT_FORMAT_LABELS, CONTENT_STATUS_META, CONTENT_STATUS_ORDER, formatDate } from '@/lib/utils'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { Badge } from '@/components/ui/Badge'
 import { StatusSelect } from '@/components/ui/StatusSelect'
 import { KanbanBoard } from '@/components/tables/KanbanBoard'
 
-const KANBAN_COLUMNS = DEMAND_STATUS_ORDER.map((id) => ({ id, label: DEMAND_STATUS_META[id].label }))
-const STATUS_OPTIONS = DEMAND_STATUS_ORDER.map((s) => ({ value: s, label: DEMAND_STATUS_META[s].label }))
+const KANBAN_COLUMNS = CONTENT_STATUS_ORDER.map((id) => ({ id, label: CONTENT_STATUS_META[id].label }))
+const STATUS_OPTIONS = CONTENT_STATUS_ORDER.map((s) => ({ value: s, label: CONTENT_STATUS_META[s].label }))
 
 export function DemandsPage() {
   const user = useCurrentUser()!
@@ -28,7 +28,7 @@ export function DemandsPage() {
   const canEditDemand = canPerformAction(user, 'editar')
   const canDelete = canPerformAction(user, 'excluir')
 
-  function changeStatus(item: ContentItem, status: DemandStatus) {
+  function changeStatus(item: ContentItem, status: ContentStatus) {
     updateContentItem(item.id, { status })
   }
 
@@ -66,8 +66,8 @@ export function DemandsPage() {
               <Badge tone="neutral">{CONTENT_FORMAT_LABELS[item.format]}</Badge>
               {clientName(item.clientId) && <Badge tone="primary">{clientName(item.clientId)}</Badge>}
             </div>
-            <p className="text-[11px] text-iter-muted">{userName(item.responsibleId)}</p>
-            {item.dueDate && <p className="text-[11px] text-iter-faint">Prazo: {formatDate(item.dueDate)}</p>}
+            <p className="text-[11px] text-iter-muted">{userName(item.editorialResponsibleId)}</p>
+            {item.internalDueDate && <p className="text-[11px] text-iter-faint">Prazo: {formatDate(item.internalDueDate)}</p>}
             <StatusSelect value={item.status} onChange={(status) => changeStatus(item, status)} disabled={!canEditDemand} options={STATUS_OPTIONS} />
           </div>
         )}

@@ -3,7 +3,7 @@ import { useCurrentUser } from '@/features/auth/useAuth'
 import type { ReportDefinition } from '@/types'
 import {
   CLIENT_STATUS_META,
-  DEMAND_STATUS_META,
+  CONTENT_STATUS_META,
   FINANCIAL_STATUS_META,
   formatClientBilling,
   formatCurrency,
@@ -157,8 +157,8 @@ export function PrintableReport({ report }: { report: ReportDefinition }) {
               c.title,
               clients.find((cl) => cl.id === c.clientId)?.name ?? '—',
               c.format,
-              DEMAND_STATUS_META[c.status].label,
-              c.dueDate ? formatDate(c.dueDate) : '—',
+              CONTENT_STATUS_META[c.status].label,
+              c.internalDueDate ? formatDate(c.internalDueDate) : '—',
             ])}
           />
         </PrintSection>

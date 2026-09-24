@@ -8,7 +8,7 @@ import { canAccessClient, canEdit as canEditResource, canExport, canPerformActio
 import { mockReports } from '@/data/mockData'
 import {
   CLIENT_STATUS_META,
-  DEMAND_STATUS_META,
+  CONTENT_STATUS_META,
   FINANCIAL_STATUS_META,
   formatClientBilling,
   formatCurrency,
@@ -235,7 +235,7 @@ export function ClientDetailPage() {
             {
               key: 'status',
               header: 'Status',
-              render: (c) => <Badge tone={DEMAND_STATUS_META[c.status].tone}>{DEMAND_STATUS_META[c.status].label}</Badge>,
+              render: (c) => <Badge tone={CONTENT_STATUS_META[c.status].tone}>{CONTENT_STATUS_META[c.status].label}</Badge>,
             },
           ]}
         />

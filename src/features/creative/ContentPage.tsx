@@ -34,10 +34,6 @@ export function ContentPage() {
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
   const canCreate = canPerformAction(user, 'criar')
   const canEditContent = canPerformAction(user, 'editar')
-  // Mesmo motivo de ApprovalsPage.tsx: content_items_update exige 'editar' na
-  // RLS, então os toggles de aprovação (internalApproval/clientApproval, que
-  // também são UPDATEs em content_items) precisam das duas ações.
-  const canApprove = canPerformAction(user, 'aprovar') && canEditContent
   const canDelete = canPerformAction(user, 'excluir')
 
   function handleDelete(item: { id: string; title: string }) {
@@ -87,12 +83,9 @@ export function ContentPage() {
               key={item.id}
               item={item}
               clientName={clientName(item.clientId)}
-              responsibleName={userName(item.responsibleId)}
-              canApprove={canApprove}
+              responsibleName={userName(item.editorialResponsibleId)}
               canChangeStatus={canEditContent}
               onStatusChange={(status) => updateContentItem(item.id, { status })}
-              onToggleInternalApproval={() => updateContentItem(item.id, { internalApproval: !item.internalApproval })}
-              onToggleClientApproval={() => updateContentItem(item.id, { clientApproval: !item.clientApproval })}
               onEdit={canEditContent ? () => setEditingItem(item) : undefined}
               onDelete={canDelete ? () => handleDelete(item) : undefined}
             />

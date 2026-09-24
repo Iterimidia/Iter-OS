@@ -37,8 +37,8 @@ function taskEventType(task: Task): CalendarEventType {
 }
 
 function contentEventType(item: ContentItem): CalendarEventType {
-  if (item.status === 'em_revisao_interna' || item.status === 'ajustes_necessarios') return 'revisao'
-  if (item.status === 'aguardando_cliente') return 'aprovacao'
+  if (item.status === 'revisao_criativa' || item.status === 'em_ajustes') return 'revisao'
+  if (item.status === 'aguardando_aprovacao') return 'aprovacao'
   return 'tarefa'
 }
 
@@ -67,11 +67,11 @@ export function buildCalendarEvents(scope: BaseId, user: User, data: CalendarSou
   if (includesArea('criativo')) {
     for (const item of data.contentItems) {
       if (!canAccessClient(user, item.clientId)) continue
-      if (item.dueDate) {
+      if (item.internalDueDate) {
         events.push({
           id: `content-due-${item.id}`,
           title: item.title,
-          date: item.dueDate,
+          date: item.internalDueDate,
           type: contentEventType(item),
           scope: 'criativo',
           clientId: item.clientId,
@@ -79,11 +79,11 @@ export function buildCalendarEvents(scope: BaseId, user: User, data: CalendarSou
           source: 'content',
         })
       }
-      if (item.publishDate) {
+      if (item.plannedPublishDate) {
         events.push({
           id: `content-pub-${item.id}`,
           title: item.title,
-          date: item.publishDate,
+          date: item.plannedPublishDate,
           type: 'publicacao',
           scope: 'criativo',
           clientId: item.clientId,

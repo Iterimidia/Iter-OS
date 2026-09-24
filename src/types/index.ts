@@ -236,33 +236,76 @@ export type ContentFormat =
   | 'legenda'
   | 'roteiro'
 
-export type DemandStatus =
-  | 'a_fazer'
+/**
+ * Pipeline editorial do Conteúdo 2.0 (9 estágios + 2 exceções fora da
+ * sequência normal). Substitui o antigo `DemandStatus` de 7 valores —
+ * Demandas e Aprovações deixaram de ser áreas próprias porque o status já
+ * expressa o momento operacional (spec Conteúdo 2.0 §8).
+ */
+export type ContentStatus =
+  | 'planejado'
+  | 'briefing_pronto'
   | 'em_producao'
-  | 'em_revisao_interna'
-  | 'ajustes_necessarios'
-  | 'aguardando_cliente'
+  | 'revisao_criativa'
+  | 'aguardando_aprovacao'
+  | 'em_ajustes'
   | 'aprovado'
+  | 'programado'
   | 'publicado'
+  | 'bloqueado'
+  | 'cancelado'
+
+export type ContentChannel = 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'kwai'
+
+export interface ContentSlide {
+  id: string
+  text: string
+}
 
 export interface ContentItem {
   id: string
   clientId: string
   projectId?: string
+  /** Mês de referência editorial, formato 'YYYY-MM' (mesma convenção de DeliveryUnit.month). */
+  referenceMonth?: string
+  channels?: ContentChannel[]
   format: ContentFormat
   theme: string
   title: string
-  responsibleId: string
-  status: DemandStatus
-  dueDate?: string
-  publishDate?: string
+  objective?: string
+  /** Quem responde pelo conteúdo estratégico/textual. */
+  editorialResponsibleId: string
+  /** Quem executa a parte criativa. */
+  executorId?: string
+  /** Quem revisa a qualidade da execução visual antes do envio para aprovação. */
+  creativeReviewerId?: string
+  status: ContentStatus
+  /** Data de entrega interna — a mais importante pra Produção. */
+  internalDueDate?: string
+  /** Data em que planejamos publicar. */
+  plannedPublishDate?: string
+  /** Quando o status mudou para `programado` — carimbo do evento, não uma data-alvo. */
+  scheduledAt?: string
+  /** Quando efetivamente foi ao ar. */
+  actualPublishDate?: string
+  hook?: string
+  mainContent?: string
   caption?: string
+  cta?: string
+  /** Roteiro — campo livre do Reel (spec §5: sem estruturar cena/câmera/enquadramento). */
   script?: string
+  /** Só populado quando `format === 'carrossel'`. */
+  slides?: ContentSlide[]
   fileUrl?: string
-  internalApproval: boolean
-  clientApproval: boolean
+  sentForApprovalAt?: string
+  approvedAt?: string
+  adjustmentNote?: string
+  blockedReason?: string
+  blockedNote?: string
+  blockedAt?: string
   comments?: Comment[]
   createdAt: string
+  updatedAt?: string
 }
 
 export interface DeliveryPlanItem {
