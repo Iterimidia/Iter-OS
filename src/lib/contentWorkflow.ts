@@ -1,4 +1,24 @@
 import type { ContentItem, ContentStatus } from '@/types'
+import { todayIso } from '@/lib/utils'
+
+/** Conteúdo "atrasado" pra fins de card/badge — nunca depois de fechado (spec §14/§16). */
+export function isContentOverdue(item: Pick<ContentItem, 'internalDueDate' | 'status'>, today = todayIso()): boolean {
+  if (!item.internalDueDate) return false
+  if (item.status === 'publicado' || item.status === 'cancelado' || item.status === 'bloqueado') return false
+  return item.internalDueDate < today
+}
+
+/**
+ * Antecedência entre entrega interna e publicação prevista, em dias.
+ * Calculada, nunca armazenada (spec §12) — e nunca usada para bloquear nada,
+ * só para sinalizar.
+ */
+export function leadTimeDays(internalDueDate?: string, plannedPublishDate?: string): number | null {
+  if (!internalDueDate || !plannedPublishDate) return null
+  const due = new Date(`${internalDueDate}T00:00:00Z`)
+  const pub = new Date(`${plannedPublishDate}T00:00:00Z`)
+  return Math.round((pub.getTime() - due.getTime()) / 86_400_000)
+}
 
 /**
  * Carimbos automáticos de data ao entrar num novo status (spec Conteúdo 2.0

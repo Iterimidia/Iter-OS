@@ -1,21 +1,12 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, ExternalLink, Pencil, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Download, ExternalLink, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { useDataStore } from '@/data/store'
 import { canAccessClient, canEdit as canEditResource, canExport, canPerformAction, canViewFile } from '@/lib/permissions'
 import { mockReports } from '@/data/mockData'
-import {
-  CLIENT_STATUS_META,
-  CONTENT_STATUS_META,
-  FINANCIAL_STATUS_META,
-  formatClientBilling,
-  formatCurrency,
-  formatDate,
-  PROJECT_STATUS_META,
-  TASK_STATUS_META,
-} from '@/lib/utils'
+import { CLIENT_STATUS_META, FINANCIAL_STATUS_META, formatClientBilling, formatCurrency, formatDate, PROJECT_STATUS_META, TASK_STATUS_META } from '@/lib/utils'
 import { Tabs } from '@/components/ui/Tabs'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
@@ -23,6 +14,8 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { DataTable } from '@/components/tables/DataTable'
 import { ClientFormModal } from '@/features/operational/ClientFormModal'
+import { ContentMonthList } from '@/components/content/ContentMonthList'
+import { ContentQuickCreateModal } from '@/features/creative/ContentQuickCreateModal'
 
 export function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
@@ -34,11 +27,15 @@ export function ClientDetailPage() {
   const projects = useDataStore((s) => s.projects.filter((p) => p.clientId === clientId))
   const tasks = useDataStore((s) => s.tasks.filter((t) => t.clientId === clientId))
   const contentItems = useDataStore((s) => s.contentItems.filter((c) => c.clientId === clientId))
+  const updateContentItem = useDataStore((s) => s.updateContentItem)
+  const removeContentItem = useDataStore((s) => s.removeContentItem)
   const financialEntries = useDataStore((s) => s.financialEntries.filter((f) => f.clientId === clientId))
   const files = useDataStore((s) => s.files.filter((f) => f.clientId === clientId && canViewFile(user, f)))
 
   const [tab, setTab] = useState('geral')
   const [editOpen, setEditOpen] = useState(false)
+  const [contentMonthsAhead, setContentMonthsAhead] = useState(2)
+  const [contentCreateOpen, setContentCreateOpen] = useState(false)
 
   if (!client || !clientId || !canAccessClient(user, clientId)) {
     return (
@@ -64,6 +61,9 @@ export function ClientDetailPage() {
   const canDeleteClient = canPerformAction(user, 'excluir')
   const canExportClient = canExport(user, mockReports.find((r) => r.id === 'rep_cliente')!)
   const canSeeFinance = canPerformAction(user, 'ver_financeiro')
+  const canCreateContent = canPerformAction(user, 'criar')
+  const canEditContent = canPerformAction(user, 'editar')
+  const canDeleteContent = canPerformAction(user, 'excluir')
 
   async function handleDelete() {
     if (window.confirm(`Excluir "${clientNameSafe}"? Isso não apaga projetos, tarefas ou lançamentos já vinculados a ele.`)) {
@@ -225,20 +225,42 @@ export function ClientDetailPage() {
       )}
 
       {tab === 'conteudo' && (
-        <DataTable
-          data={contentItems}
-          keyField={(c) => c.id}
-          emptyTitle="Nenhum conteúdo vinculado"
-          columns={[
-            { key: 'titulo', header: 'Título', render: (c) => c.title },
-            { key: 'formato', header: 'Formato', render: (c) => <Badge tone="neutral">{c.format}</Badge> },
-            {
-              key: 'status',
-              header: 'Status',
-              render: (c) => <Badge tone={CONTENT_STATUS_META[c.status].tone}>{CONTENT_STATUS_META[c.status].label}</Badge>,
-            },
-          ]}
-        />
+        <div>
+          {canCreateContent && (
+            <div className="mb-4 flex justify-end">
+              <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => setContentCreateOpen(true)}>
+                Nova peça
+              </Button>
+            </div>
+          )}
+          {contentItems.length === 0 ? (
+            <EmptyState title="Nenhum conteúdo vinculado" />
+          ) : (
+            <ContentMonthList
+              items={contentItems}
+              clients={[client]}
+              users={users}
+              monthsAhead={contentMonthsAhead}
+              onExpand={() => setContentMonthsAhead((n) => n + 1)}
+              canChangeStatus={canEditContent}
+              onStatusChange={(item, status) => updateContentItem(item.id, { status })}
+              onOpen={(item) => navigate(`/criativo/conteudo/${item.id}`)}
+              onDelete={
+                canDeleteContent
+                  ? (item) => {
+                      if (window.confirm(`Excluir a peça "${item.title}"?`)) removeContentItem(item.id)
+                    }
+                  : undefined
+              }
+            />
+          )}
+          <ContentQuickCreateModal
+            open={contentCreateOpen}
+            onClose={() => setContentCreateOpen(false)}
+            defaultClientId={client.id}
+            onCreated={(id) => navigate(`/criativo/conteudo/${id}`)}
+          />
+        </div>
       )}
 
       {tab === 'financeiro' && canSeeFinance && (

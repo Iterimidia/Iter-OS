@@ -30,10 +30,9 @@ import { SettingsPage } from '@/features/operational/SettingsPage'
 
 import { CreativePanelPage } from '@/features/creative/CreativePanelPage'
 import { ContentPage } from '@/features/creative/ContentPage'
-import { DemandsPage } from '@/features/creative/DemandsPage'
+import { ContentDetailPage } from '@/features/creative/ContentDetailPage'
 import { CreativeCalendarPage } from '@/features/creative/CreativeCalendarPage'
 import { CreativeFilesPage } from '@/features/creative/CreativeFilesPage'
-import { ApprovalsPage } from '@/features/creative/ApprovalsPage'
 
 export function App() {
   const authStatus = useAuthStore((s) => s.status)
@@ -133,18 +132,13 @@ export function App() {
           </Route>
           <Route element={<RequireArea areaId="criativo:conteudo" />}>
             <Route path="/criativo/conteudo" element={<ContentPage />} />
-          </Route>
-          <Route element={<RequireArea areaId="criativo:demandas" />}>
-            <Route path="/criativo/demandas" element={<DemandsPage />} />
+            <Route path="/criativo/conteudo/:contentId" element={<ContentDetailPage />} />
           </Route>
           <Route element={<RequireArea areaId="criativo:calendario" />}>
             <Route path="/criativo/calendario" element={<CreativeCalendarPage />} />
           </Route>
           <Route element={<RequireArea areaId="criativo:arquivos" />}>
             <Route path="/criativo/arquivos" element={<CreativeFilesPage />} />
-          </Route>
-          <Route element={<RequireArea areaId="criativo:aprovacoes" />}>
-            <Route path="/criativo/aprovacoes" element={<ApprovalsPage />} />
           </Route>
         </Route>
       </Route>

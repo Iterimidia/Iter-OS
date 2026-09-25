@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getMissingBriefingRequirements, isReadyForBriefingPronto, resolveContentStatusStamps } from '@/lib/contentWorkflow'
+import { getMissingBriefingRequirements, isContentOverdue, isReadyForBriefingPronto, leadTimeDays, resolveContentStatusStamps } from '@/lib/contentWorkflow'
 import type { ContentItem } from '@/types'
 
 const BASE: Partial<ContentItem> = {
@@ -55,6 +55,33 @@ describe('isReadyForBriefingPronto', () => {
   it('espelha getMissingBriefingRequirements vazio/não vazio', () => {
     expect(isReadyForBriefingPronto({ ...BASE, mainContent: 'x' })).toBe(true)
     expect(isReadyForBriefingPronto({ ...BASE, executorId: undefined })).toBe(false)
+  })
+})
+
+describe('isContentOverdue', () => {
+  it('data de entrega no passado + status aberto -> atrasado', () => {
+    expect(isContentOverdue({ internalDueDate: '2026-01-01', status: 'em_producao' }, '2026-06-01')).toBe(true)
+  })
+  it('data de entrega no futuro -> não atrasado', () => {
+    expect(isContentOverdue({ internalDueDate: '2026-12-01', status: 'em_producao' }, '2026-06-01')).toBe(false)
+  })
+  it('sem data de entrega -> nunca atrasado', () => {
+    expect(isContentOverdue({ internalDueDate: undefined, status: 'em_producao' }, '2026-06-01')).toBe(false)
+  })
+  it('publicado/cancelado/bloqueado nunca contam como atrasado, mesmo com data no passado', () => {
+    expect(isContentOverdue({ internalDueDate: '2026-01-01', status: 'publicado' }, '2026-06-01')).toBe(false)
+    expect(isContentOverdue({ internalDueDate: '2026-01-01', status: 'cancelado' }, '2026-06-01')).toBe(false)
+    expect(isContentOverdue({ internalDueDate: '2026-01-01', status: 'bloqueado' }, '2026-06-01')).toBe(false)
+  })
+})
+
+describe('leadTimeDays', () => {
+  it('calcula a diferença em dias entre entrega interna e publicação prevista', () => {
+    expect(leadTimeDays('2026-10-05', '2026-10-25')).toBe(20)
+  })
+  it('sem uma das duas datas -> null (nunca quebra, nunca inventa número)', () => {
+    expect(leadTimeDays(undefined, '2026-10-25')).toBeNull()
+    expect(leadTimeDays('2026-10-05', undefined)).toBeNull()
   })
 })
 

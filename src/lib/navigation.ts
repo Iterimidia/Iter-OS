@@ -52,11 +52,15 @@ export const AREAS: AppArea[] = [
 
   { id: 'criativo:painel', baseId: 'criativo', label: 'Painel Criativo', path: '/criativo', icon: 'LayoutDashboard' },
   { id: 'criativo:conteudo', baseId: 'criativo', label: 'Conteúdo', path: '/criativo/conteudo', icon: 'PenTool' },
-  { id: 'criativo:demandas', baseId: 'criativo', label: 'Demandas', path: '/criativo/demandas', icon: 'KanbanSquare' },
   { id: 'criativo:calendario', baseId: 'criativo', label: 'Calendário', path: '/criativo/calendario', icon: 'CalendarDays' },
   { id: 'criativo:arquivos', baseId: 'criativo', label: 'Arquivos', path: '/criativo/arquivos', icon: 'FolderOpen' },
-  { id: 'criativo:aprovacoes', baseId: 'criativo', label: 'Aprovações', path: '/criativo/aprovacoes', icon: 'CheckCircle2' },
 ]
+// `criativo:demandas` e `criativo:aprovacoes` deixaram de existir como áreas
+// (Conteúdo 2.0 — status já expressa o momento operacional, ver
+// src/lib/contentWorkflow.ts). As duas ficam apenas como IDs históricos em
+// `role_default_areas`/`user.allowed_areas` no banco — de propósito
+// intocados, não fazem mais nada no frontend porque `AREAS.find` não os
+// encontra mais.
 
 export function areasForBase(baseId: BaseId): AppArea[] {
   return AREAS.filter((a) => a.baseId === baseId)
